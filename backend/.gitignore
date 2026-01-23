@@ -1,0 +1,27 @@
+# Virtual Environment
+.myenv/
+venv/
+myenv/
+
+# Python Internals
+**/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment Variables & Secrets (CRITICAL)
+.env
+
+# IDE Specifics
+.vscode/
+.idea/
+*.swp
+
+# OS Specifics
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
