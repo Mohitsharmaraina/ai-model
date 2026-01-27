@@ -7,7 +7,7 @@ from jose import jwt, JWTError
 
 # Import your Beanie User model and Settings
 from .models import User 
-from config import settings
+from config_secrets import settings
 
 # Define the scheme once here
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/user/login")

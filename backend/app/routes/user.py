@@ -1,7 +1,7 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from app.models import User, Token, RegisterRequest
-from config import settings
+from config_secrets import settings
 from jose import jwt, JWTError
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from datetime import datetime, timedelta, timezone

@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import init_db
-
+from app.config.database import init_db
+from app.config.cloudinary import init_cloudinary
 from app.routes.user_prompts import router as user_prompts_router
 from app.routes.user import router as user_router
 
@@ -12,6 +12,7 @@ from app.routes.user import router as user_router
 async def lifespan(app: FastAPI):
     # Startup code
     await init_db()
+    await init_cloudinary()
     yield
     # Shutdown code (if any)
 

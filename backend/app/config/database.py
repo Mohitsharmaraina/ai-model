@@ -1,7 +1,7 @@
 from pymongo import AsyncMongoClient # type: ignore
 from beanie import init_beanie # pyright: ignore[reportMissingImports]
 from app.models import ChatSession, User
-from config import settings
+from config_secrets import settings
 
 # Call this from within your event loop to get beanie setup.
 

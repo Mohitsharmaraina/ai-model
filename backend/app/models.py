@@ -1,4 +1,4 @@
-from typing import Optional, List, Union,  Annotated
+from typing import Optional, List, Union,  Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime, timezone
 
@@ -25,7 +25,13 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
+class GetCurrentUser(BaseModel):
+    id: str
+    email: str
+    full_name: Optional[str] = None
+
 # ----user model for MongoDB----
+    
 class User(Document):
     password: str
     email: Annotated[str, Indexed(unique=True)]
@@ -38,27 +44,30 @@ class User(Document):
 
 # ------------------------------- Multimodal Content Schemas ------------------------
 class TextContent(BaseModel):
-    type: str = "text"
+    type: Literal["text"] = "text"
     text: str
 
 class ImageUrl(BaseModel):
     url: str  # URL or base64 data
 
 class ImageContent(BaseModel):
-    type: str = "image_url"
+    type: Literal["image_url"] = "image_url"
     image_url: ImageUrl
 
+class ImagePlaceholder(BaseModel):
+    type: Literal["image"] = "image"
+
 # A message can be a string OR a list of text/image parts
-MessageContent = Union[str, List[Union[TextContent, ImageContent]]]
+MessageContent = Union[TextContent, ImageContent, ImagePlaceholder]
 
 class ChatRequest(BaseModel):
     session_id: str
     # Input can be simple string or multimodal list
-    message: Union[str, List[MessageContent]]
+    message: List[MessageContent]
     
 class Message(BaseModel):
-    role: str # "system", "user", or "assistant"
-    content: MessageContent
+    role: Literal["system", "user", "assistant"]
+    content: List[MessageContent]
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     is_cached: bool = False
 

@@ -1,9 +1,11 @@
 
 from datetime import datetime, timezone
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from app.models import ChatSession, Message, ChatRequest, User, ChatSession_view
 from app.dependencies import get_current_user
-
+from app.utils.cloudinary_upload import upload_image_to_cloudinary
+import json
+from typing import Optional, List
 
 router = APIRouter(prefix="/api/v1/user_prompts", tags=["user_prompts"])
 
@@ -57,76 +59,90 @@ async def get_session_history(
 # ---------------------------------------------------------
 @router.post("/chat")
 async def send_message(
-    payload: ChatRequest,
-    background_tasks: BackgroundTasks,
-    user: User = Depends(get_current_user)
+    session_id: str = Form(...),
+    message: Optional[str] = Form(None),
+    images: Optional[List[UploadFile]] = File(None),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    user: User = Depends(get_current_user),
 ):
-    """
-    Main chat endpoint.
-    1. Checks if session exists. If not, creates it (New Chat).
-    2. Checks Vector DB for Semantic Cache (Stubbed here).
-    3. Generates AI Response (Stubbed here).
-    4. returns AI Response immediately.
-    5. Saves AI Response & User Message.
-    6. Updates 'updated_at' so it jumps to top of sidebar.
-    """
-    
-    # 1. Try to find the session
+    # Normalize
+    message = (message or "").strip()
+    images = images or []
+
+    if not message and not images:
+        raise HTTPException(
+            status_code=400,
+            detail="Either text message or image is required"
+        )
+
+    # Find or create session
     session = await ChatSession.find_one(
-        ChatSession.session_id == payload.session_id,
+        ChatSession.session_id == session_id,
         ChatSession.user_id == str(user.id)
     )
 
-    # 2. If "New Chat", create the session document
     if not session:
         session = ChatSession(
             user_id=str(user.id),
-            session_id=payload.session_id,
-            title="New Chat", # update this later with AI summarization
+            session_id=session_id,
+            title="New Chat",
             messages=[]
         )
         await session.insert()
 
-    # 3. Create User Message Object
-    user_msg = Message(
-        role="user",
-        content=payload.message
-    )
-    # 2. Check Vector DB for Semantic Cache (Text queries only)
-    # ... (cache logic here) ...
+    # ---------------- Build content blocks ----------------
+    processed_content = []
 
-    # 3. Call GPT-4o (using session.messages for context)
-    # response_text = call_gpt4o(request.message, session.messages)
-    
-    ai_response_text = f"This is a simulated AI response for {user_msg.content}"  # Stubbed response
-    # --------------------------
+    # Text first
+    if message:
+        processed_content.append({
+            "type": "text",
+            "text": message
+        })
+
+    # Images next
+    for img in images:
+        uploaded_url = await upload_image_to_cloudinary(img)
+        processed_content.append({
+            "type": "image_url",
+            "image_url": {"url": uploaded_url}
+        })
+
+    # Create messages
+    user_msg = Message(role="user", content=processed_content)
 
     ai_msg = Message(
         role="assistant",
-        content=ai_response_text
-    )
-        # 4. Background Task: Atomic Update to MongoDB
-    background_tasks.add_task(
-        save_to_mongo, 
-        session, 
-        user_msg, 
-        ai_msg
+        content=[{"type": "text", "text": "This is a simulated AI response"}]
     )
 
-    return {"response": ai_response_text}
+    background_tasks.add_task(save_to_mongo, session, user_msg, ai_msg)
+
+    return {"response": ai_msg.content[0].text}
+
 
 
 # Background function using Beanie's atomic update
-async def save_to_mongo(session: ChatSession, user_msg, ai_msg):
-    # Check if input had images for metadata
-    has_images = any(isinstance(i, dict) and i.get("type") == "image_url" for i in user_msg.content) if isinstance(user_msg.content, list) else False
+async def save_to_mongo(session: ChatSession, user_msg: Message, ai_msg: Message):
 
-    # Atomic push to avoid race conditions
+    has_images = any(block.type == "image_url" for block in user_msg.content)
+
     await session.update(
-        {"$push": {"messages": {"$each": [user_msg.model_dump(), ai_msg.model_dump()]}}},
-        {"$set": {"metadata.has_images": has_images,"updated_at": datetime.now(timezone.utc)} }
-        
+        {
+            "$push": {
+                "messages": {
+                    "$each": [user_msg.model_dump(), ai_msg.model_dump()]
+                }
+            }
+        },
+        {
+            "$set": {
+                "metadata.has_images": has_images,
+                "updated_at": datetime.now(timezone.utc)
+            }
+        }
     )
+
     if len(session.messages) == 0:
         # trigger_background_title_generator(session.session_id, user_msg, ai_msg)
         pass

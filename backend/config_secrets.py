@@ -7,6 +7,9 @@ class Settings(BaseSettings):
     jwt_secret_key: str
     jwt_algorithm: str
     access_token_expire_hours: int
+    cloudinary_cloud_name: str
+    cloudinary_api_key: str     
+    cloudinary_api_secret: str
 
     # Tells Pydantic to read from a .env file
     model_config = SettingsConfigDict(env_file=".env")
