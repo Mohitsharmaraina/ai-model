@@ -1,7 +1,7 @@
 from typing import Optional, List, Union,  Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime, timezone
-
+from uuid import uuid4
 from beanie import Document, Indexed
 
 
@@ -47,29 +47,40 @@ class TextContent(BaseModel):
     type: Literal["text"] = "text"
     text: str
 
-class ImageUrl(BaseModel):
-    url: str  # URL or base64 data
+
 
 class ImageContent(BaseModel):
     type: Literal["image_url"] = "image_url"
-    image_url: ImageUrl
-
-class ImagePlaceholder(BaseModel):
-    type: Literal["image"] = "image"
+    image_url: str
 
 # A message can be a string OR a list of text/image parts
-MessageContent = Union[TextContent, ImageContent, ImagePlaceholder]
+MessageContent = Union[TextContent, ImageContent]
 
+class UserTurn(BaseModel):
+    content: List[MessageContent]
+
+class AssistantTurn(BaseModel):
+    content: List[MessageContent]
+
+class TurnMetadata(BaseModel):
+    has_images: bool = False
+    model: Optional[str] = None
+    latency_ms: Optional[int] = None
+    token_usage: Optional[int] = None
+    cache_hit: bool = False 
 class ChatRequest(BaseModel):
     session_id: str
     # Input can be simple string or multimodal list
     message: List[MessageContent]
     
-class Message(BaseModel):
-    role: Literal["system", "user", "assistant"]
-    content: List[MessageContent]
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    is_cached: bool = False
+class ChatTurn(BaseModel):
+    turn_id: str = Field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    user: UserTurn
+    assistant: Optional[AssistantTurn] = None
+
+    metadata: TurnMetadata = Field(default_factory=TurnMetadata)
 
 class ChatSession_view(BaseModel):
     session_id: str
@@ -81,7 +92,7 @@ class ChatSession(Document):
     session_id: Annotated[str, Indexed(unique=True)] 
     title: str = "New Chat"  # Default title until AI summarizes it
     
-    messages: List[Message] = []
+    turns: List[ChatTurn] = []
     
     # Timestamps for sorting the sidebar
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

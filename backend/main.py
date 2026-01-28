@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from app.config.database import init_db
 from app.config.cloudinary import init_cloudinary
+from app.config.redis_connection import get_redis_client
 from app.routes.user_prompts import router as user_prompts_router
 from app.routes.user import router as user_router
 
@@ -13,6 +14,7 @@ async def lifespan(app: FastAPI):
     # Startup code
     await init_db()
     await init_cloudinary()
+    await get_redis_client()
     yield
     # Shutdown code (if any)
 
