@@ -5,8 +5,10 @@ from app.models import ChatSession, User, ChatSession_view, TextContent, ImageCo
 from app.dependencies import get_current_user
 from app.utils.cloudinary_upload import upload_image_to_cloudinary
 from typing import Optional, List
-from services.semantic_cache import SemanticCache
-from services.llm import generate_embedding, call_llm
+from app.utils.semantic_cache import SemanticCache
+from app.utils.local_embeddings_generator import generate_embedding
+
+# from services.llm import generate_embedding, call_llm
 
 router = APIRouter(prefix="/api/v1/user_prompts", tags=["user_prompts"])
 
@@ -66,6 +68,7 @@ async def send_message(
     background_tasks: BackgroundTasks = BackgroundTasks(),
     user: User = Depends(get_current_user),
 ):
+    semantic_cache = SemanticCache()
     # ---------------- Normalize ----------------
     message = (message or "").strip()
     images = images or []
@@ -106,10 +109,34 @@ async def send_message(
     # ---------------- Create Turn ----------------
     turn = ChatTurn(
         user=UserTurn(content=user_content),
-        metadata=TurnMetadata(
-            has_images=len(images) > 0
-        )
+        
     )
+
+    # ---------------- Semantic Cache Check for text queries ----------------
+    embedding = None
+    if (len(images)==0):
+        # 1. Generate embedding for the user text message
+        embedding = await generate_embedding(message)
+
+        # 2. Check cache
+        cached_response =await semantic_cache.check_cache(embedding, threshold=0.1)
+        print(f"Cache lookup result: {cached_response}")
+        if cached_response:
+            turn.assistant = AssistantTurn(
+                content=[TextContent(text=cached_response)],
+                is_cached=True
+            )
+            turn.metadata = TurnMetadata(
+                has_images=False,
+                cache_hit=True
+            )
+
+
+            # Save turn asynchronously
+            background_tasks.add_task(save_turn_to_mongo, session, turn)
+
+            return {"response": cached_response}
+
 
     # ---------------- Call AI (stubbed) ----------------
     ai_text = f"This is a simulated AI response for query \"{message}\"."
@@ -118,9 +145,20 @@ async def send_message(
         content=[TextContent(text=ai_text)],
         is_cached=False
     )
+    turn.metadata = TurnMetadata(
+        has_images=(len(images) > 0),
+        cache_hit=False
+    )
 
     # ---------------- Save async ----------------
     background_tasks.add_task(save_turn_to_mongo, session, turn)
+    if embedding:
+        background_tasks.add_task(
+        semantic_cache.store_cache,
+        embedding,
+        ai_text,
+        ttl=86400
+    )
 
     return {"response": ai_text}
 
