@@ -1,4 +1,4 @@
-import redis
+import redis.asyncio as redis
 from redis.cluster import RedisCluster
 from config_secrets import settings
 

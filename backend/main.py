@@ -7,6 +7,7 @@ from app.config.redis_connection import get_redis_client
 from app.routes.user_prompts import router as user_prompts_router
 from app.routes.user import router as user_router
 from app.utils.local_embeddings_generator import get_model
+from app.utils.semantic_cache import SemanticCache
 
 
 @asynccontextmanager
@@ -14,10 +15,17 @@ async def lifespan(app: FastAPI):
     # Startup code
     await init_db()
     await init_cloudinary()
-    await get_redis_client()
+
+    # redis and semantic cache setup
+    redis_client = await get_redis_client()
+    cache = SemanticCache(redis_client)
+    await cache._create_index_if_not_exists() # ensure index is created once at setup
+    # store in app.state for access in routes
+    app.state.semantic_cache = cache
     get_model()
     yield
     # Shutdown code (if any)
+    await redis_client.close()
 
 app = FastAPI(lifespan=lifespan, title="AI Model Backend API", version="1.0.0")
 

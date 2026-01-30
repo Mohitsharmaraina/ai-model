@@ -1,12 +1,13 @@
 
 from datetime import datetime, timezone
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, Request
 from app.models import ChatSession, User, ChatSession_view, TextContent, ImageContent, UserTurn, AssistantTurn, ChatTurn, TurnMetadata
 from app.dependencies import get_current_user
 from app.utils.cloudinary_upload import upload_image_to_cloudinary
 from typing import Optional, List
 from app.utils.semantic_cache import SemanticCache
 from app.utils.local_embeddings_generator import generate_embedding
+from app.utils.get_llm_response import get_llm_response
 
 # from services.llm import generate_embedding, call_llm
 
@@ -62,13 +63,15 @@ async def get_session_history(
 # ---------------------------------------------------------
 @router.post("/chat")
 async def send_message(
+    request: Request,
     session_id: str = Form(...),
     message: Optional[str] = Form(None),
     images: Optional[List[UploadFile]] = File(None),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     user: User = Depends(get_current_user),
 ):
-    semantic_cache = SemanticCache()
+    #pull pre=initialized   cache   from app state
+    semantic_cache = request.app.state.semantic_cache
     # ---------------- Normalize ----------------
     message = (message or "").strip()
     images = images or []
@@ -119,7 +122,7 @@ async def send_message(
         embedding = await generate_embedding(message)
 
         # 2. Check cache
-        cached_response =await semantic_cache.check_cache(embedding, threshold=0.1)
+        cached_response = await semantic_cache.check_cache(embedding)
         print(f"Cache lookup result: {cached_response}")
         if cached_response:
             turn.assistant = AssistantTurn(
@@ -135,11 +138,13 @@ async def send_message(
             # Save turn asynchronously
             background_tasks.add_task(save_turn_to_mongo, session, turn)
 
-            return {"response": cached_response}
+            return {"response": cached_response, "cache_used": True, "tokens_used":0}
 
 
     # ---------------- Call AI (stubbed) ----------------
-    ai_text = f"This is a simulated AI response for query \"{message}\"."
+    response = await get_llm_response(message or "Image query")
+    ai_text = response["answer"]
+    tokens_used = response["usage"]["total_tokens"]
 
     turn.assistant = AssistantTurn(
         content=[TextContent(text=ai_text)],
@@ -157,10 +162,10 @@ async def send_message(
         semantic_cache.store_cache,
         embedding,
         ai_text,
-        ttl=86400
+    
     )
 
-    return {"response": ai_text}
+    return {"response": ai_text, "cache_used": False, "tokens_used":tokens_used}
 
 
 # Background function using Beanie's atomic update
@@ -178,8 +183,9 @@ async def save_turn_to_mongo(session: ChatSession, turn: ChatTurn):
             }
         }
     )
+    print(f"Turn saved to session {session.session_id}")
 
-    if len(session.messages) == 0:
+    if len(session.turns) == 0:
         # trigger_background_title_generator(session.session_id, user_msg, ai_msg)
         pass
 

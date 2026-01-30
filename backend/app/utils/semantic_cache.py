@@ -7,20 +7,21 @@ from app.config.redis_connection import get_redis_client
 
 
 class SemanticCache:
-    def __init__(self, index_name="semantic_cache_idx", vector_dim=384):
-        self.r = get_redis_client()
+    def __init__(self,redis_client, index_name="semantic_cache_idx", vector_dim=384):
+        self.r = redis_client
         self.index_name = index_name
         self.vector_dim = vector_dim
-        self._create_index_if_not_exists()
+      
 
     async def _create_index_if_not_exists(self):
         """Creates the vector search index if it doesn't exist."""
         try:
-            self.r.ft(self.index_name).info()
+            await self.r.ft(self.index_name).info()
         except:
+            print(f"Creating index {self.index_name}...")
             # Schema: We store the 'response' text and the 'vector'
             schema = (
-                TextField("response"), # The LLM answer
+                TextField("turn_id"), # the id of the user chat turn
                 VectorField(
                     "vector",
                     "HNSW", # Algorithm (FLAT or HNSW)
@@ -36,12 +37,13 @@ class SemanticCache:
             print(f"Index {self.index_name} created.")
 
     async def check_cache(self, vector_embedding: list[float], threshold: float = 0.1):
+        print("Checking cache for similar query...")
         """
         Search for a similar query. 
         Threshold: 0.1 distance means 0.9 similarity (Cosine).
         """
         # Convert list to numpy bytes for Redis
-        vector_bytes = await np.array(vector_embedding, dtype=np.float32).tobytes()
+        vector_bytes = np.array(vector_embedding, dtype=np.float32).tobytes()
 
         # Query syntax for KNN (K-Nearest Neighbors)
         q = (
@@ -65,18 +67,19 @@ class SemanticCache:
         
         return None
 
-    async def store_cache(self, vector_embedding: list[float], response_text: str, ttl: int = 86400):
+    async def store_cache(self, vector_embedding: list[float], turn_id: str, ttl: int = 86400):
+        print("Storing cache entry...")
         """Stores the embedding and response with a TTL (default 1 day)."""
-        vector_bytes = await np.array(vector_embedding, dtype=np.float32).tobytes()
+        vector_bytes = np.array(vector_embedding, dtype=np.float32).tobytes()
         
         # Unique key for the cache entry
         # Ideally, hash the text prompt to make a key, or use a UUID
        
-        key = f"cache:{uuid.uuid4()}"
+        key = f"cache:{turn_id}"
 
         mapping = {
             "vector": vector_bytes,
-            "response": response_text
+            "turn_id": turn_id
         }
         
         # Store Hash
