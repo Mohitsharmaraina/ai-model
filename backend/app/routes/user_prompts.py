@@ -1,7 +1,7 @@
 
 from datetime import datetime, timezone
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, Request
-from app.models import ChatSession, User, ChatSession_view, TextContent, ImageContent, UserTurn, AssistantTurn, ChatTurn, TurnMetadata
+from app.models.user_models import ChatSession, User, ChatSession_view, TextContent, ImageContent, UserTurn, AssistantTurn, ChatTurn, TurnMetadata
 from app.dependencies import get_current_user
 from app.utils.cloudinary_upload import upload_image_to_cloudinary
 from typing import Optional, List
@@ -122,23 +122,44 @@ async def send_message(
         embedding = await generate_embedding(message)
 
         # 2. Check cache
-        cached_response = await semantic_cache.check_cache(embedding)
-        print(f"Cache lookup result: {cached_response}")
-        if cached_response:
-            turn.assistant = AssistantTurn(
-                content=[TextContent(text=cached_response)],
-                is_cached=True
-            )
-            turn.metadata = TurnMetadata(
-                has_images=False,
-                cache_hit=True
-            )
+        cached_result = await semantic_cache.check_cache(embedding)
+        print(f"Cache lookup result: {cached_result}")
+        if cached_result:
+            hit_turn_id = cached_result["turn_id"]
+            hit_session_id = cached_result["session_id"]
+
+            # 2. Fetch the ACTUAL text from MongoDB
+            # We find the session, and filter for just the specific turn
+            cached_session = await ChatSession.find_one(
+            ChatSession.session_id == hit_session_id
+        )
+            # Find the specific turn in the list
+            # (Simple Python loop is often faster than complex Mongo queries for small arrays)
+            found_text = None
+            if cached_session:
+                for past_turn in cached_session.turns:
+                    if past_turn.turn_id == hit_turn_id:
+                        # found it!
+                        found_text = past_turn.assistant.content[0].text
+                        break
+                    
+            if found_text:
+                # Return cached response
+
+                turn.assistant = AssistantTurn(
+                    content=[TextContent(text=found_text)],
+                    is_cached=True
+                )
+                turn.metadata = TurnMetadata(
+                    has_images=False,
+                    cache_hit=True
+                )
 
 
-            # Save turn asynchronously
-            background_tasks.add_task(save_turn_to_mongo, session, turn)
+                # Save turn asynchronously
+                background_tasks.add_task(save_turn_to_mongo, session, turn)
 
-            return {"response": cached_response, "cache_used": True, "tokens_used":0}
+                return {"response": found_text, "cache_used": True, "tokens_used":0}
 
 
     # ---------------- Call AI (stubbed) ----------------
@@ -156,12 +177,13 @@ async def send_message(
     )
 
     # ---------------- Save async ----------------
-    background_tasks.add_task(save_turn_to_mongo, session, turn)
+    background_tasks.add_task(save_turn_to_mongo, session, turn, tokens_used)
     if embedding:
         background_tasks.add_task(
         semantic_cache.store_cache,
         embedding,
-        ai_text,
+        turn_id=str(turn.turn_id),
+        session_id=session.session_id,
     
     )
 
@@ -169,7 +191,7 @@ async def send_message(
 
 
 # Background function using Beanie's atomic update
-async def save_turn_to_mongo(session: ChatSession, turn: ChatTurn):
+async def save_turn_to_mongo(session: ChatSession, turn: ChatTurn, tokens_used: int = 0):
     await session.update(
         {
             "$push": {
@@ -179,6 +201,7 @@ async def save_turn_to_mongo(session: ChatSession, turn: ChatTurn):
         {
             "$set": {
                 "metadata.has_images": turn.metadata.has_images,
+                "metadata.token_usage": session.metadata.get("token_usage", 0) + tokens_used,
                 "updated_at": datetime.now(timezone.utc)
             }
         }

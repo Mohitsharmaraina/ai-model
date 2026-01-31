@@ -6,7 +6,7 @@ from jose import jwt, JWTError
 
 
 # Import your Beanie User model and Settings
-from .models import User 
+from app.models.user_models import User 
 from config_secrets import settings
 
 # Define the scheme once here

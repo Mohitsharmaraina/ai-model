@@ -1,6 +1,6 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status, Response
-from app.models import User, Token, RegisterRequest
+from app.models.user_models import User, Token, RegisterRequest
 from config_secrets import settings
 from jose import jwt, JWTError
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm

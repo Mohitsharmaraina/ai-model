@@ -22,6 +22,7 @@ class SemanticCache:
             # Schema: We store the 'response' text and the 'vector'
             schema = (
                 TextField("turn_id"), # the id of the user chat turn
+                TextField("session_id"), # the id of the chat session
                 VectorField(
                     "vector",
                     "HNSW", # Algorithm (FLAT or HNSW)
@@ -49,7 +50,7 @@ class SemanticCache:
         q = (
             Query(f"(*)=>[KNN 1 @vector $vec AS score]")
             .sort_by("score")
-            .return_fields("response", "score")
+           .return_fields("turn_id", "session_id", "score")
             .dialect(2)
         )
         
@@ -62,12 +63,16 @@ class SemanticCache:
             
             # Check if it meets your similarity threshold
             if score <= threshold:
-                return doc.response
+                print(f"Cache Hit! Score: {score}")
+                return {
+                    "turn_id": doc.turn_id,
+                    "session_id": doc.session_id # Ensure your Schema uses 'session_id' (fixed typo)
+                }
             print(f"Cache miss: score {score} exceeds threshold {threshold}")
         
         return None
 
-    async def store_cache(self, vector_embedding: list[float], turn_id: str, ttl: int = 86400):
+    async def store_cache(self, vector_embedding: list[float], turn_id: str, session_id: str, ttl: int = 86400):
         print("Storing cache entry...")
         """Stores the embedding and response with a TTL (default 1 day)."""
         vector_bytes = np.array(vector_embedding, dtype=np.float32).tobytes()
@@ -79,10 +84,13 @@ class SemanticCache:
 
         mapping = {
             "vector": vector_bytes,
-            "turn_id": turn_id
+            "turn_id": turn_id,
+            "session_id": session_id,
         }
         
-        # Store Hash
-        await self.r.hset(key, mapping=mapping)
-        # Set Expiry (TTL) - automatic cleanup!
-        await self.r.expire(key, ttl)
+        try:
+            await self.r.hset(key, mapping=mapping)
+            await self.r.expire(key, ttl)
+            print(f"Cache entry stored with key {key}.")
+        except Exception as e:
+            print(f"Error storing cache entry: {e}")

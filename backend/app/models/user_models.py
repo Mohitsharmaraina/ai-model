@@ -66,7 +66,6 @@ class TurnMetadata(BaseModel):
     has_images: bool = False
     model: Optional[str] = None
     latency_ms: Optional[int] = None
-    token_usage: Optional[int] = None
     cache_hit: bool = False 
 class ChatRequest(BaseModel):
     session_id: str
@@ -101,7 +100,8 @@ class ChatSession(Document):
     metadata: dict = {
         "quality_score": 0, 
         "has_images": False,
-        "is_training_ready": False
+        "is_training_ready": False,
+        "token_usage": 0
     }
 
     class Settings:
