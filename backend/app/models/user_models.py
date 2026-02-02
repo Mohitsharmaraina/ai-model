@@ -34,6 +34,7 @@ class GetCurrentUser(BaseModel):
     
 class User(Document):
     password: str
+    isAdmin: bool  = False
     email: Annotated[str, Indexed(unique=True)]
     full_name: Optional[str] = None
     date_joined: datetime = Field(default_factory=lambda:datetime.now(timezone.utc))

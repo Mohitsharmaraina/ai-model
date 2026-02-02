@@ -6,6 +6,7 @@ from app.config.cloudinary import init_cloudinary
 from app.config.redis_connection import get_redis_client
 from app.routes.user_prompts import router as user_prompts_router
 from app.routes.user import router as user_router
+from app.routes.super_admin import router as super_admin_router
 from app.utils.local_embeddings_generator import get_model
 from app.utils.semantic_cache import SemanticCache
 
@@ -43,3 +44,4 @@ def health_check():
 
 app.include_router(user_prompts_router)
 app.include_router(user_router)
+app.include_router(super_admin_router)

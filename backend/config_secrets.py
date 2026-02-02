@@ -8,12 +8,12 @@ class Settings(BaseSettings):
     jwt_algorithm: str
     access_token_expire_hours: int
 
-        # Cloudinary settings
+    # Cloudinary settings
     cloudinary_cloud_name: str
     cloudinary_api_key: str     
     cloudinary_api_secret: str
     
-        # Redis settings
+    # Redis settings
     redis_host: str
     redis_port: int
     redis_username: str
@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     # Critical for Migration:
     # Set to True when you move to AWS ElastiCache Cluster
     REDIS_CLUSTER_MODE: bool = False
+    
+    # Superadmin credentials
+    super_admin_email : str
+    super_admin_password : str
 
     # Tells Pydantic to read from a .env file
     model_config = SettingsConfigDict(env_file=".env")
