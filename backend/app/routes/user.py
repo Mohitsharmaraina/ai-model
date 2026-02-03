@@ -46,11 +46,12 @@ async def login_user( response: Response, form_data:Annotated[OAuth2PasswordRequ
     access_token_expires = timedelta(hours=settings.access_token_expire_hours)
     to_encode = {
         "sub": str(user.id),
+        "isAdmin": str(user.isAdmin),
         "exp": datetime.now(timezone.utc) + access_token_expires
     }
     encoded_jwt = jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
     response.set_cookie(key="access_token", value=encoded_jwt, httponly=True, max_age=settings.access_token_expire_hours * 3600)
-    response.set_cookie(key="userId", value=str(user.id), httponly=True, max_age=settings.access_token_expire_hours * 3600)
+
 
     return {"access_token": encoded_jwt, "token_type": "bearer"}
 

@@ -1,0 +1,6 @@
+user_input,assistant_output,image_url
+"Describe this medical scan.","The image shows a clear chest X-ray with no visible congestion.","https://example.com/images/chest-xray-001.jpg"
+"What are the symptoms of common flu?","Common symptoms include fever, cough, sore throat, and muscle aches.",""
+"Identify the abnormality in this slide.","The slide indicates a cluster of polymorphic cells suggesting inflammation.","https://example.com/images/pathology-slide-4.png"
+"How do I clean an open wound?","Rinse with clean water, apply mild soap to the surrounding area, and cover with a sterile bandage.",""
+"Compare this report with standard benchmarks.","The patient's levels are within the 95th percentile for their age group.","https://example.com/images/lab-report-idx.jpg"

@@ -40,6 +40,42 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> Use
     
     return user
 
+
+# get admin user(this method is good if we want to quickly demote admin to common user)
+
+async def get_admin_user(current_user: Annotated[User, Depends(get_current_user)]) -> User:
+    if not current_user.isAdmin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User does not have admin privileges")
+    return current_user
+
+# We can implement a Token Blacklist to manually "kill" an admin's session on demotion by super admin
+# get admin user (this method is good if we can wait for cookies to expire to change admin status)
+# async def get_admin_user(token: str = Depends(oauth2_scheme)):
+#     credentials_exception = HTTPException(
+#         status_code=status.HTTP_401_UNAUTHORIZED,
+#         detail="Could not validate credentials",
+#     )
+#     try:
+#         payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        
+#         # Check the isAdmin flag directly from the token payload
+#         is_admin = payload.get("isAdmin")
+#         user_id = payload.get("sub")
+        
+#         if user_id is None:
+#             raise credentials_exception
+            
+#         if not is_admin:
+#             raise HTTPException(
+#                 status_code=status.HTTP_403_FORBIDDEN,
+#                 detail="Admin privileges required"
+#             )
+            
+#         return {"user_id": user_id, "isAdmin": is_admin}
+        
+#     except JWTError:
+#         raise credentials_exception
+
 # This is the DEPENDENCY to get the super admin user
 async def get_super_admin(token: Annotated[str, Depends(oauth2_scheme_super)]) -> str:
     credentials_exception = HTTPException(
