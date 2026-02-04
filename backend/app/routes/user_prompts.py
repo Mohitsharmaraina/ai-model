@@ -5,11 +5,9 @@ from app.models.user_models import ChatSession, User, ChatSession_view, TextCont
 from app.dependencies import get_current_user
 from app.utils.cloudinary_upload import upload_image_to_cloudinary
 from typing import Optional, List
-from app.utils.semantic_cache import SemanticCache
 from app.utils.local_embeddings_generator import generate_embedding
 from app.utils.get_llm_response import get_llm_response
 
-# from services.llm import generate_embedding, call_llm
 
 router = APIRouter(prefix="/api/v1/user_prompts", tags=["user_prompts"])
 
@@ -24,18 +22,22 @@ async def get_user_sessions(
     Fetches the list of chat sessions for the sidebar.
     Returns only metadata (ID, Title, Date) to keep it light.
     """
-    # Find sessions by user_id, sort by updated_at (newest first)
-    # .project() selects specific fields to reduce bandwidth
-    sessions = await ChatSession.find(
+ 
+   
+    try:
+        sessions = await ChatSession.find(
         ChatSession.user_id == str(user.id)
-    ).sort(
-        -ChatSession.updated_at
-    ).project(
-        ChatSession_view  # You can define a Pydantic view for just these fields(ID, Title, Date)
-    ).to_list()
+        ).sort( 
+            -ChatSession.updated_at    
+        ).project(                       # .project() selects specific fields to reduce bandwidth
+            ChatSession_view             # You can define a Pydantic view for just these fields(ID, Title, Date)
+        ).to_list()
+
+        return sessions
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal Server Error", cause=str(e))
     
-    # Or simply return the specific fields:
-    return sessions
+
 
 # ---------------------------------------------------------
 # 2. GET SINGLE SESSION (Loads History when clicking Sidebar)
@@ -48,15 +50,21 @@ async def get_session_history(
     """
     Loads the full message history for a specific chat session.
     """
-    session = await ChatSession.find_one(
+    try:
+        session = await ChatSession.find_one(
         ChatSession.session_id == session_id,
         ChatSession.user_id == str(user.id)
-    )
+        )
     
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-        
-    return session
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        return session
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal Server Error", cause=str(e))
+    
+
+
 
 # ---------------------------------------------------------
 # 3. SEND MESSAGE (Handles "New Chat" & "Continue Chat")

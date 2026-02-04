@@ -35,6 +35,8 @@ async def register_user(registerRequest: RegisterRequest):
    
     except DuplicateKeyError:
         raise HTTPException(status_code=400, detail="Email already registered")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal Server Error", cause=str(e))
 
 @router.post("/login", response_model=Token,)
 async def login_user( response: Response, form_data:Annotated[OAuth2PasswordRequestForm, Depends()]):
@@ -42,18 +44,25 @@ async def login_user( response: Response, form_data:Annotated[OAuth2PasswordRequ
     if not user or not verify_password(form_data.password, user.password):
         raise HTTPException(status_code=400, detail="Invalid email or password")
     
-    # Create JWT Token
-    access_token_expires = timedelta(hours=settings.access_token_expire_hours)
-    to_encode = {
-        "sub": str(user.id),
-        "isAdmin": str(user.isAdmin),
-        "exp": datetime.now(timezone.utc) + access_token_expires
-    }
-    encoded_jwt = jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
-    response.set_cookie(key="access_token", value=encoded_jwt, httponly=True, max_age=settings.access_token_expire_hours * 3600)
+    try:
+        # Create JWT Token
+        access_token_expires = timedelta(hours=settings.access_token_expire_hours)
+        to_encode = {
+            "sub": str(user.id),
+            "isAdmin": str(user.isAdmin),
+            "exp": datetime.now(timezone.utc) + access_token_expires
+        }
+        encoded_jwt = jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+        response.set_cookie(key="access_token", value=encoded_jwt, httponly=True, max_age=settings.access_token_expire_hours * 3600)
 
 
-    return {"access_token": encoded_jwt, "token_type": "bearer"}
+        return {"access_token": encoded_jwt, "token_type": "bearer"}
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Could not validate credentials",
+        )
+    
 
 @router.get("/getUser", response_model=User)
 async def get_current_user(token: Annotated[str, Depends(OAuth2PasswordBearer(tokenUrl="/api/v1/user/login"))]):
