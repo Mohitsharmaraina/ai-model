@@ -220,34 +220,3 @@ async def save_turn_to_mongo(session: ChatSession, turn: ChatTurn, tokens_used: 
         # trigger_background_title_generator(session.session_id, user_msg, ai_msg)
         pass
 
-
-# -----------function to export data for fine-tuning -----------
-# import json
-
-# def export_for_finetuning(db):
-#     # 1. Filter: Get sessions rated highly (good quality data)
-#     cursor = db.chat_sessions.find({"metadata.finetune_rating": {"$gte": 4}})
-    
-#     dataset = []
-    
-#     for session in cursor:
-#         training_entry = {"messages": []}
-        
-#         for msg in session["messages"]:
-#             # OpenAI Fine-tuning strictly accepts: role, content, name
-#             # We must strip out 'timestamp', 'vector_id', etc.
-            
-#             clean_msg = {
-#                 "role": msg["role"],
-#                 "content": msg["content"]
-#             }
-#             training_entry["messages"].append(clean_msg)
-            
-#         dataset.append(training_entry)
-
-#     # 2. Write to JSONL
-#     with open("finetune_data.jsonl", "w") as f:
-#         for entry in dataset:
-#             f.write(json.dumps(entry) + "\n")
-            
-#     return "finetune_data.jsonl"
