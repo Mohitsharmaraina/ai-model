@@ -1,5 +1,5 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends, File, Form, Response, UploadFile, HTTPException
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, HTTPException
 import io
 from app.dependencies import get_admin_user
 from app.utils.xlsx_or_csv_to_jsonl import process_mixed_data_v2
@@ -9,10 +9,12 @@ router = APIRouter(prefix="/api/v1/admin", tags=["Admin"])
 
 @router.post("/convert-mixed")
 async def convert_mixed_endpoint(
+     
     admin: Annotated[str, Depends(get_admin_user)],
     dataset_name: str = Form(...),
     file: UploadFile = File(...), 
     system_prompt: str = Form("You are a helpful assistant."),
+    
 ):
    
         # 1. Read raw bytes from the uploaded file
@@ -32,6 +34,7 @@ async def convert_mixed_endpoint(
         # 3. Store via Service
         try:
             new_entry = await DatasetStorageService.save_to_gridfs(
+                bucket=req.app.state.gridfs_bucket,
                 jsonl_content=jsonl_str,
                 metadata={
                     "name": dataset_name,

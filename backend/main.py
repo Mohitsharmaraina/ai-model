@@ -15,7 +15,14 @@ from app.utils.semantic_cache import SemanticCache
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup code
-    await init_db()
+
+    # Database setup and GridFS bucket initialization
+    client, database, bucket = await init_db()
+    app.state.db_client = client
+    app.state.db = database
+    app.state.gridfs_bucket = bucket
+
+
     await init_cloudinary()
 
     # redis and semantic cache setup
@@ -28,6 +35,7 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown code (if any)
     await redis_client.close()
+    client.close()
 
 app = FastAPI(lifespan=lifespan, title="AI Model Backend API", version="1.0.0")
 

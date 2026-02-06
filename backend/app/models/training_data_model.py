@@ -15,3 +15,4 @@ class TrainingDataset(Document):
 
     class Settings:
         name = "training_datasets"
+        
