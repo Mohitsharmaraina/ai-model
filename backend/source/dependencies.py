@@ -7,7 +7,7 @@ from config_secrets import settings
 
 
 # Import your Beanie User model and Settings
-from app.models.user_models import User 
+from source.models.user_models import User 
 from config_secrets import settings
 
 # Define the scheme once here

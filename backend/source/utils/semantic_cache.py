@@ -3,7 +3,7 @@ import uuid
 from redis.commands.search.field import VectorField, TextField
 from redis.commands.search.index_definition import IndexDefinition, IndexType
 from redis.commands.search.query import Query
-from app.config.redis_connection import get_redis_client
+from source.config.redis_connection import get_redis_client
 
 
 class SemanticCache:

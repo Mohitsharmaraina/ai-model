@@ -1,20 +1,18 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
-from app.config.database import init_db
-from app.config.cloudinary import init_cloudinary
-from app.config.redis_connection import get_redis_client
-from app.routes.user_prompts import router as user_prompts_router
-from app.routes.user import router as user_router
-from app.routes.super_admin import router as super_admin_router
-from app.routes.admin import router as admin_router
-from app.utils.local_embeddings_generator import get_model
-from app.utils.semantic_cache import SemanticCache
-
+from source.config.database import init_db
+from source.config.cloudinary import init_cloudinary
+from source.config.redis_connection import get_redis_client
+from source.utils.local_embeddings_generator import get_model
+from source.utils.semantic_cache import SemanticCache
+from source.api import register_routes
+from source.logging import configure_logging, LogLevels
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup code
+    configure_logging(LogLevels.info)
 
     # Database setup and GridFS bucket initialization
     client, database, bucket = await init_db()
@@ -33,6 +31,7 @@ async def lifespan(app: FastAPI):
     app.state.semantic_cache = cache
     get_model()
     yield
+
     # Shutdown code (if any)
     await redis_client.close()
     client.close()
@@ -51,7 +50,4 @@ app.add_middleware(
 def health_check():
     return {"Welcome to fastAPI server":"The server is up and running!"}
 
-app.include_router(user_prompts_router)
-app.include_router(user_router)
-app.include_router(super_admin_router)
-app.include_router(admin_router)
+register_routes(app)

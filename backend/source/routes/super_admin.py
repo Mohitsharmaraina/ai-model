@@ -1,8 +1,8 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status, Response
-from app.models.super_admin_model import Token
-from app.models.user_models import User
-from app.dependencies import get_super_admin
+from source.models.super_admin_model import Token
+from source.models.user_models import User
+from source.dependencies import get_super_admin
 from config_secrets import settings
 from jose import jwt, JWTError
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm

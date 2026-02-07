@@ -1,6 +1,7 @@
 import io
-from app.models.training_data_model import TrainingDataset # Import the model defined above
-from fastapi import Request
+
+from bson import ObjectId
+from source.models.training_data_model import TrainingDataset # Import the model defined above
 
 
 # https://www.mongodb.com/docs/languages/python/pymongo-driver/current/crud/gridfs/  (official PyMongo async GridFS docs)
@@ -11,7 +12,6 @@ class DatasetStorageService:
         """
         Uses native PyMongo async GridFS to store the file.
         """
-        print("Saving to GridFS with metadata:", metadata)
         
         # 3. Upload the file binary
         file_bytes = jsonl_content.encode("utf-8")
@@ -27,9 +27,9 @@ class DatasetStorageService:
             version=metadata['version'],
             system_prompt=metadata['system_prompt'],
             sample_count=metadata['sample_count'],
-            gridfs_id=gridfs_id
+            gridfs_id=str(gridfs_id)
         )
-        print("Beanie initialized:", TrainingDataset._document_settings is not None)
+
         await dataset_record.insert()
         return dataset_record
 
@@ -38,13 +38,14 @@ class DatasetStorageService:
         """
         Retrieves the JSONL string back for fine-tuning.
         """
-        dataset = await dataset.get(dataset_id)
+        dataset = await TrainingDataset.get(dataset_id)
         if not dataset:
             raise ValueError("Dataset record not found")
 
 
         # Stream the chunks back into memory
         output = io.BytesIO()
-        await bucket.download_to_stream(dataset.gridfs_id, output)
+        file_id = ObjectId(dataset.gridfs_id)
+        await bucket.download_to_stream(file_id, output)
         
         return output.getvalue().decode("utf-8")

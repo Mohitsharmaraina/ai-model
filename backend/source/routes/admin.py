@@ -1,15 +1,15 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, HTTPException
 import io
-from app.dependencies import get_admin_user
-from app.utils.xlsx_or_csv_to_jsonl import process_mixed_data_v2
-from app.utils.training_file_gridfs_storage import DatasetStorageService
+from source.dependencies import get_admin_user
+from source.utils.xlsx_or_csv_to_jsonl import process_mixed_data_v2
+from source.utils.training_file_gridfs_storage import DatasetStorageService
 
 router = APIRouter(prefix="/api/v1/admin", tags=["Admin"])
 
 @router.post("/convert-mixed")
 async def convert_mixed_endpoint(
-     
+     req: Request,
     admin: Annotated[str, Depends(get_admin_user)],
     dataset_name: str = Form(...),
     file: UploadFile = File(...), 
@@ -43,6 +43,8 @@ async def convert_mixed_endpoint(
                     "sample_count": sample_count
                 }
             )
-            return {"id": str(new_entry.id), "samples": sample_count, "status": "archived"}
+            get_training_file = await DatasetStorageService.get_file_content(req.app.state.db, req.app.state.gridfs_bucket, str(new_entry.id))
+            return {"id": str(new_entry.id), "samples": sample_count, "status": "archived", "file_content": get_training_file}
+        
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Database storage failed: {e}")

@@ -1,29 +1,29 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, status, Response
-from app.models.user_models import User, Token, RegisterRequest
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
+from source.models.user_models import User, Token, RegisterRequest
 from config_secrets import settings
 from jose import jwt, JWTError
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from datetime import datetime, timedelta, timezone
 from passlib.context import CryptContext
 from pymongo.errors import DuplicateKeyError
+from ..rate_limiting import limiter
 
 router = APIRouter(prefix="/api/v1/user", tags=["users"])
 
 #    hash user password
 pwd_context = CryptContext(schemes=["bcrypt_sha256"], deprecated="auto")
 
-def hash_password(plain_password:str) -> str:
-    
+def hash_password(plain_password:str) -> str:   
     return pwd_context.hash(plain_password)
 
 # verify password during login
 def verify_password(plain_password:str, hashed_password:str) -> bool:
-
     return pwd_context.verify(plain_password, hashed_password)
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-async def register_user(registerRequest: RegisterRequest):
+@limiter.limit("5/hour")
+async def register_user(request:Request, registerRequest: RegisterRequest):
     try:
        user = User(
            email=registerRequest.email.strip().lower(),
@@ -39,7 +39,8 @@ async def register_user(registerRequest: RegisterRequest):
         raise HTTPException(status_code=500, detail="Internal Server Error", cause=str(e))
 
 @router.post("/login", response_model=Token,)
-async def login_user( response: Response, form_data:Annotated[OAuth2PasswordRequestForm, Depends()]):
+@limiter.limit("5/hour")
+async def login_user(request:Request, response: Response, form_data:Annotated[OAuth2PasswordRequestForm, Depends()]):
     user = await User.find_one(User.email == form_data.username.strip().lower())
     if not user or not verify_password(form_data.password, user.password):
         raise HTTPException(status_code=400, detail="Invalid email or password")
