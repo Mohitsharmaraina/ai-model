@@ -73,7 +73,8 @@ async def get_session_history(
 async def send_message(
     request: Request,
     session_id: str = Form(...),
-    message: Optional[str] = Form(None),
+    message:str = Form(...),
+    # images: Optional[List[UploadFile]] = File(None),
     images: Optional[List[UploadFile]] = File(None),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     user: User = Depends(get_current_user),
@@ -87,7 +88,7 @@ async def send_message(
     if not message and not images:
         raise HTTPException(
             status_code=400,
-            detail="Either text message or image is required"
+            detail="Type your query response first."
         )
 
     # ---------------- Find or create session ----------------
@@ -112,6 +113,11 @@ async def send_message(
         user_content.append(TextContent(text=message))
 
     for img in images:
+        if(len(images)>1):
+            raise HTTPException(
+                status_code= 400,
+                detail="Only one image per query is supported"
+            )
         uploaded_url = await upload_image_to_cloudinary(img)
         user_content.append(
             ImageContent(image_url=uploaded_url)

@@ -26,6 +26,7 @@ class DatasetStorageService:
             dataset_name=metadata['name'],
             version=metadata['version'],
             system_prompt=metadata['system_prompt'],
+            status=metadata['status'],
             sample_count=metadata['sample_count'],
             gridfs_id=str(gridfs_id)
         )

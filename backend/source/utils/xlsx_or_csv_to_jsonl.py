@@ -43,23 +43,21 @@ def process_mixed_data_v2(input_stream, system_prompt: str, filename: str):
             {"role": "system", "content": system_prompt}
         ]
 
-        # 2. Add Text User Message (Always present)
-        messages.append({
-            "role": "user",
-            "content": user_text
-        })
+        user_content = [{"type":"text", "text": user_text}]
 
         # 3. Add Image User Message (ONLY if image_url exists)
         if image_url:
-            messages.append({
-                "role": "user",
-                "content": [
-                    {
+            user_content.append({
+              
                         "type": "image_url",
                         "image_url": {"url": image_url}
-                    }
-                ]
+                
             })
+
+        messages.append({
+            "role":"user",
+            "content":user_content
+        })
 
         # 4. Add Assistant Response
         messages.append({

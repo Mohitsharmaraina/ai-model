@@ -9,6 +9,7 @@ class TrainingDataset(Document):
     version: int = 1
     system_prompt: str
     sample_count: int
+    status: str
     # Reference to the actual file in GridFS
     gridfs_id:Annotated[str, Indexed()]
     created_at: datetime = Field(default_factory= lambda: datetime.now(timezone.utc))
