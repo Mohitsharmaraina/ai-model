@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from source.config.database import init_db
-from source.config.cloudinary import init_cloudinary
+from source.config.s3 import init_s3
 from source.config.redis_connection import get_redis_client
 from source.utils.local_embeddings_generator import get_model
 from source.utils.semantic_cache import SemanticCache
@@ -21,7 +21,8 @@ async def lifespan(app: FastAPI):
     app.state.gridfs_bucket = bucket
 
 
-    await init_cloudinary()
+    s3_client = await init_s3()
+    app.state.s3_client = s3_client
 
     # redis and semantic cache setup
     redis_client = await get_redis_client()

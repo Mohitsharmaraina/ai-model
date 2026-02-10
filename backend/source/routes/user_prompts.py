@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, Request
 from source.models.user_models import ChatSession, User, ChatSession_view, TextContent, ImageContent, UserTurn, AssistantTurn, ChatTurn, TurnMetadata
 from source.dependencies import get_current_user
-from source.utils.cloudinary_upload import upload_image_to_cloudinary
+from backend.source.utils.s3_upload import upload_to_s3
 from typing import Optional, List
 from source.utils.local_embeddings_generator import generate_embedding
 from source.utils.get_llm_response import get_llm_response
@@ -118,7 +118,7 @@ async def send_message(
                 status_code= 400,
                 detail="Only one image per query is supported"
             )
-        uploaded_url = await upload_image_to_cloudinary(img)
+        uploaded_url = await upload_to_s3(request ,img)
         user_content.append(
             ImageContent(image_url=uploaded_url)
         )

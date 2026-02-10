@@ -8,10 +8,16 @@ class Settings(BaseSettings):
     jwt_algorithm: str
     access_token_expire_hours: int
 
-    # Cloudinary settings
-    cloudinary_cloud_name: str
-    cloudinary_api_key: str     
-    cloudinary_api_secret: str
+    # # Cloudinary settings
+    # cloudinary_cloud_name: str
+    # cloudinary_api_key: str     
+    # cloudinary_api_secret: str
+
+    # aws settings
+    aws_access_key_id: str
+    aws_secret_access_key:str
+    aws_bucket_name:str
+    aws_region_name:str
     
     # Redis settings
     redis_host: str
