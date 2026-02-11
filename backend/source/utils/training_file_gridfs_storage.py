@@ -35,7 +35,7 @@ class DatasetStorageService:
         return dataset_record
 
     @staticmethod
-    async def get_file_content(dataset, bucket, dataset_id: str) -> str:
+    async def get_file_bytes( bucket, dataset_id: str) -> str:
         """
         Retrieves the JSONL string back for fine-tuning.
         """
@@ -49,4 +49,4 @@ class DatasetStorageService:
         file_id = ObjectId(dataset.gridfs_id)
         await bucket.download_to_stream(file_id, output)
         
-        return output.getvalue().decode("utf-8")
+        return output.getvalue()

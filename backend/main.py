@@ -8,11 +8,16 @@ from source.utils.local_embeddings_generator import get_model
 from source.utils.semantic_cache import SemanticCache
 from source.api import register_routes
 from source.logging import configure_logging, LogLevels
+from openai import OpenAI
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup code
     configure_logging(LogLevels.info)
+
+    # openai client
+    openAI_client = OpenAI(api_key= "api key")
+    app.state.client = openAI_client
 
     # Database setup and GridFS bucket initialization
     client, database, bucket = await init_db()
@@ -21,7 +26,7 @@ async def lifespan(app: FastAPI):
     app.state.gridfs_bucket = bucket
 
 
-    s3_client = await init_s3()
+    s3_client = init_s3()
     app.state.s3_client = s3_client
 
     # redis and semantic cache setup
