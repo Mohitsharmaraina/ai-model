@@ -6,7 +6,7 @@ from source.dependencies import get_current_user
 from source.utils.s3_upload import upload_to_s3
 from typing import Optional, List
 from source.utils.local_embeddings_generator import generate_embedding
-from source.utils.get_llm_response import get_llm_response
+from source.utils.gnerate_openai_query import build_openai_content, get_llm_response
 
 
 router = APIRouter(prefix="/api/v1/user_prompts", tags=["user_prompts"])
@@ -176,7 +176,31 @@ async def send_message(
                 return {"response": found_text, "cache_used": True, "tokens_used":0}
 
 
-    # ---------------- Call AI (stubbed) ----------------
+    # ---------------- Call openAI Model ----------------
+
+
+    client = request.app.state.client
+    openai_content = build_openai_content(user_content)
+
+    response = client.responses.create(
+        model="gpt-4o-mini",
+        instructions="""
+                    You are wind energy  compliance AI.
+                    If image is present, analyze it.
+                    If only text, answer normally.
+                    """,
+        input=[
+            {
+                "role": "user",
+                "content": openai_content
+            }
+        ],
+        temperature=0.3
+    )
+
+    ai_text = response.output_text
+    tokens_used = response.usage.total_tokens
+
     response = await get_llm_response(message or "Image query")
     ai_text = response["answer"]
     tokens_used = response["usage"]["total_tokens"]
@@ -222,7 +246,7 @@ async def save_turn_to_mongo(session: ChatSession, turn: ChatTurn, tokens_used: 
     )
     print(f"Turn saved to session {session.session_id}")
 
-    if len(session.turns) == 0:
-        # trigger_background_title_generator(session.session_id, user_msg, ai_msg)
-        pass
+    # if len(session.turns) == 0:
+    #     # trigger_background_title_generator(session.session_id, user_msg, ai_msg)
+    #     pass
 

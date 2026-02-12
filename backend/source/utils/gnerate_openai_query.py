@@ -29,3 +29,24 @@ async def get_llm_response(prompt: str) -> dict:
 # Example of how to call it:
 # result = await get_llm_response("What is corruption?")
 # print(f"Tokens used: {result['usage']['total_tokens']}")
+
+
+async def build_openai_content(user_content):
+    content_list = []
+
+    for item in user_content:
+        # If it's text
+        if hasattr(item, "text"):
+            content_list.append({
+                "type": "input_text",
+                "text": item.text
+            })
+
+        # If it's image
+        elif hasattr(item, "image_url"):
+            content_list.append({
+                "type": "input_image",
+                "image_url": item.image_url
+            })
+
+    return content_list

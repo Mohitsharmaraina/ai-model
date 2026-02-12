@@ -9,6 +9,7 @@ from source.utils.semantic_cache import SemanticCache
 from source.api import register_routes
 from source.logging import configure_logging, LogLevels
 from openai import OpenAI
+from config_secrets import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -16,7 +17,8 @@ async def lifespan(app: FastAPI):
     configure_logging(LogLevels.info)
 
     # openai client
-    openAI_client = OpenAI(api_key= "api key")
+    open_ai_api_key= settings.open_ai_access_key
+    openAI_client = OpenAI(api_key=open_ai_api_key)
     app.state.client = openAI_client
 
     # Database setup and GridFS bucket initialization
@@ -40,7 +42,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown code (if any)
     await redis_client.close()
-    client.close()
+    await client.close()
 
 app = FastAPI(lifespan=lifespan, title="AI Model Backend API", version="1.0.0")
 

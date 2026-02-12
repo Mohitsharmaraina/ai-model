@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str
     access_token_expire_hours: int
 
+    # openai
+    open_ai_access_key: str
+
     # # Cloudinary settings
     # cloudinary_cloud_name: str
     # cloudinary_api_key: str     
