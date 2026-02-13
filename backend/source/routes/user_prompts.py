@@ -178,25 +178,48 @@ async def send_message(
 
     # ---------------- Call openAI Model ----------------
 
-
+    # 1. initialize client 
     client = request.app.state.client
+
+    # 2. generate model context using previous messages
+    MAX_HISTORY_TURNS = 6
+    recent_turns = session.turns[-MAX_HISTORY_TURNS:]
+
+    openai_messages = []
+
+    # Add system via instructions (cleaner)
+    instructions = "You are a wind energy engineering assistant."
+
+    # Add history
+    for past_turn in recent_turns:
+        openai_messages.append({
+            "role": "user",
+            "content": build_openai_content(past_turn.user.content)
+        })
+        openai_messages.append({
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "input_text",
+                    "text": past_turn.assistant.content[0].text
+                }
+            ]
+        })
     openai_content = build_openai_content(user_content)
+
+    # Add current user message
+    openai_messages.append({
+        "role": "user",
+        "content": openai_content
+    })
 
     response = client.responses.create(
         model="gpt-4o-mini",
-        instructions="""
-                    You are wind energy  compliance AI.
-                    If image is present, analyze it.
-                    If only text, answer normally.
-                    """,
-        input=[
-            {
-                "role": "user",
-                "content": openai_content
-            }
-        ],
+        instructions=instructions,
+        input=openai_messages,
         temperature=0.3
     )
+
 
     ai_text = response.output_text
     tokens_used = response.usage.total_tokens
