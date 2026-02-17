@@ -7,6 +7,7 @@ from source.utils.s3_upload import upload_to_s3
 from typing import Optional, List
 from source.utils.local_embeddings_generator import generate_embedding
 from source.utils.gnerate_openai_query import build_openai_content, get_llm_response
+import logging
 
 
 router = APIRouter(prefix="/api/v1/user_prompts", tags=["user_prompts"])
@@ -69,6 +70,18 @@ async def get_session_history(
 # ---------------------------------------------------------
 # 3. SEND MESSAGE (Handles "New Chat" & "Continue Chat")
 # ---------------------------------------------------------
+
+def is_cacheable_query(query, response):
+    words = query.split()
+    if len(words) < 6:
+        return False
+    if len(response.split()) < 30:
+        return False
+    skip_words = ["hi", "hello", "thanks", "ok"]
+    if query.lower().strip() in skip_words:
+        return False
+    return True
+
 @router.post("/chat")
 async def send_message(
     request: Request,
@@ -182,30 +195,38 @@ async def send_message(
     client = request.app.state.client
 
     # 2. generate model context using previous messages
-    MAX_HISTORY_TURNS = 6
+    MAX_HISTORY_TURNS = 1
     recent_turns = session.turns[-MAX_HISTORY_TURNS:]
 
     openai_messages = []
 
     # Add system via instructions (cleaner)
-    instructions = "You are a wind energy engineering assistant."
+    instructions = '''You are a senior wind energy engineer.
+                    You can analyze images provided in the input.
+                    When an image is included, base your response strictly on visible features in the image.
+                    Do not claim inability to view images.
+                    Provide technically rigorous, concise responses using SI units.
+                    Avoid introductory commentary.
+                    Target response length: 200 tokens.
+                    
+                    '''
 
     # Add history
     for past_turn in recent_turns:
         openai_messages.append({
             "role": "user",
-            "content": build_openai_content(past_turn.user.content)
+            "content": await build_openai_content(past_turn.user.content[0].text)
         })
         openai_messages.append({
             "role": "assistant",
             "content": [
                 {
-                    "type": "input_text",
+                    "type": "output_text",
                     "text": past_turn.assistant.content[0].text
                 }
             ]
         })
-    openai_content = build_openai_content(user_content)
+    openai_content =await build_openai_content(user_content)
 
     # Add current user message
     openai_messages.append({
@@ -213,20 +234,28 @@ async def send_message(
         "content": openai_content
     })
 
-    response = client.responses.create(
+   
+    try:
+        response = client.responses.create(
         model="gpt-4o-mini",
         instructions=instructions,
         input=openai_messages,
-        temperature=0.3
-    )
-
+        temperature=0.1,
+        max_output_tokens = 300
+        )
+    except Exception as e:
+        logging.exception("Unexpected error :", str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+     
 
     ai_text = response.output_text
     tokens_used = response.usage.total_tokens
+    input_tokens = response.usage.input_tokens
+    output_tokens = response.usage.output_tokens
 
-    response = await get_llm_response(message or "Image query")
-    ai_text = response["answer"]
-    tokens_used = response["usage"]["total_tokens"]
+    # response = await get_llm_response(message or "Image query")
+    # ai_text = response["answer"]
+    # tokens_used = response["usage"]["total_tokens"]
 
     turn.assistant = AssistantTurn(
         content=[TextContent(text=ai_text)],
@@ -240,15 +269,16 @@ async def send_message(
     # ---------------- Save async ----------------
     background_tasks.add_task(save_turn_to_mongo, session, turn, tokens_used)
     if embedding:
-        background_tasks.add_task(
-        semantic_cache.store_cache,
-        embedding,
-        turn_id=str(turn.turn_id),
-        session_id=session.session_id,
+        if is_cacheable_query(message, ai_text):
+            background_tasks.add_task(
+            semantic_cache.store_cache,
+            embedding,
+            turn_id=str(turn.turn_id),
+            session_id=session.session_id,
     
-    )
+        )
 
-    return {"response": ai_text, "cache_used": False, "tokens_used":tokens_used}
+    return {"response": ai_text, "cache_used": False, "tokens_used":tokens_used, "input_tokens":input_tokens, "output_tokens":output_tokens}
 
 
 # Background function using Beanie's atomic update

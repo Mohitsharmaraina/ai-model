@@ -14,8 +14,9 @@ class TrainingDataset(Document):
     openai_job_id: Optional[str]  =None
     fine_tuned_model : Optional[str] = None
     last_event_message: Optional[str] = None
-    # Reference to the actual file in GridFS
     gridfs_id:Annotated[str, Indexed()]
+    is_active:bool= False
+    parent_dataset_id: Optional[str] = None
     created_at: datetime = Field(default_factory= lambda: datetime.now(timezone.utc))
 
     class Settings:

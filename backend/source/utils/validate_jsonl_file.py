@@ -1,7 +1,7 @@
 import json
 from urllib.parse import urlparse
 from typing import List, Dict, Any
-import ipaddress
+
 
 ALLOWED_ROLES = {"system", "user", "assistant"}
 ALLOWED_CONTENT_TYPES = {"text", "image_url"}
@@ -22,61 +22,44 @@ def is_valid_url(url: str) -> bool:
     except Exception:
         return False
 
-
-def validate_message_content(content: Any, line_no: int):
+def validate_finetuning_jsonl(
+    jsonl_str: str,
+    strict: bool = True
+):
     """
-    Validates a single message's content field.
+    Validates a JSONL dataset for OpenAI fine-tuning.
+    Raises DatasetValidationError on failure.
     """
-    if isinstance(content, str):
-        if not content.strip():
-            raise DatasetValidationError(
-                f"Line {line_no}: Empty string content is not allowed"
-            )
-        if len(content) > MAX_CHARS_PER_MESSAGE:
-            raise DatasetValidationError(
-                f"Line {line_no}: Message content too long"
-            )
-        return
-    
 
-    if isinstance(content, list):
-        if not content:
+    lines = [l for l in jsonl_str.splitlines() if l.strip()]
+
+    if not lines:
+        raise DatasetValidationError("Dataset is empty")
+
+    for i, line in enumerate(lines, start=1):
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError as e:
             raise DatasetValidationError(
-                f"Line {line_no}: Content list cannot be empty"
+                f"Line {i}: Invalid JSON ({e})"
             )
 
-        for block in content:
-            if not isinstance(block, dict):
-                raise DatasetValidationError(
-                    f"Line {line_no}: Content blocks must be objects"
-                )
+        if "messages" not in obj:
+            raise DatasetValidationError(
+                f"Line {i}: Missing 'messages' field"
+            )
 
-            block_type = block.get("type")
-            if block_type not in ALLOWED_CONTENT_TYPES:
-                raise DatasetValidationError(
-                    f"Line {line_no}: Invalid content type '{block_type}'"
-                )
+        if not isinstance(obj["messages"], list):
+            raise DatasetValidationError(
+                f"Line {i}: 'messages' must be an array"
+            )
 
-            if block_type == "text":
-                text = block.get("text", "")
-                if not isinstance(text, str) or not text.strip():
-                    raise DatasetValidationError(
-                        f"Line {line_no}: Text block must contain non-empty text"
-                    )
+        validate_messages(obj["messages"], i)
 
-            if block_type == "image_url":
-                url = block.get("image_url", {}).get("url")
-                if not url or not is_valid_url(url):
-                    raise DatasetValidationError(
-                        f"Line {line_no}: Invalid image_url"
-                    )
-
-        return
-
-    raise DatasetValidationError(
-        f"Line {line_no}: Content must be string or list"
-    )
-
+    return {
+        "status": "ok",
+        "samples": len(lines)
+    }
 
 def validate_messages(messages: List[Dict[str, Any]], line_no: int):
     if not messages:
@@ -150,43 +133,58 @@ def validate_messages(messages: List[Dict[str, Any]], line_no: int):
         )
 
 
-def validate_finetuning_jsonl(
-    jsonl_str: str,
-    strict: bool = True
-):
+
+def validate_message_content(content: Any, line_no: int):
     """
-    Validates a JSONL dataset for OpenAI fine-tuning.
-    Raises DatasetValidationError on failure.
+    Validates a single message's content field.
     """
-
-    lines = [l for l in jsonl_str.splitlines() if l.strip()]
-
-    if not lines:
-        raise DatasetValidationError("Dataset is empty")
-
-    for i, line in enumerate(lines, start=1):
-        try:
-            obj = json.loads(line)
-        except json.JSONDecodeError as e:
+    if isinstance(content, str):
+        if not content.strip():
             raise DatasetValidationError(
-                f"Line {i}: Invalid JSON ({e})"
+                f"Line {line_no}: Empty string content is not allowed"
+            )
+        if len(content) > MAX_CHARS_PER_MESSAGE:
+            raise DatasetValidationError(
+                f"Line {line_no}: Message content too long"
+            )
+        return
+    
+
+    if isinstance(content, list):
+        if not content:
+            raise DatasetValidationError(
+                f"Line {line_no}: Content list cannot be empty"
             )
 
-        if "messages" not in obj:
-            raise DatasetValidationError(
-                f"Line {i}: Missing 'messages' field"
-            )
+        for block in content:
+            if not isinstance(block, dict):
+                raise DatasetValidationError(
+                    f"Line {line_no}: Content blocks must be objects"
+                )
 
-        if not isinstance(obj["messages"], list):
-            raise DatasetValidationError(
-                f"Line {i}: 'messages' must be an array"
-            )
+            block_type = block.get("type")
+            if block_type not in ALLOWED_CONTENT_TYPES:
+                raise DatasetValidationError(
+                    f"Line {line_no}: Invalid content type '{block_type}'"
+                )
 
-        validate_messages(obj["messages"], i)
+            if block_type == "text":
+                text = block.get("text", "")
+                if not isinstance(text, str) or not text.strip():
+                    raise DatasetValidationError(
+                        f"Line {line_no}: Text block must contain non-empty text"
+                    )
 
-    return {
-        "status": "ok",
-        "samples": len(lines)
-    }
+            if block_type == "image_url":
+                url = block.get("image_url", {}).get("url")
+                if not url or not is_valid_url(url):
+                    raise DatasetValidationError(
+                        f"Line {line_no}: Invalid image_url"
+                    )
 
+        return
+
+    raise DatasetValidationError(
+        f"Line {line_no}: Content must be string or list"
+    )
 

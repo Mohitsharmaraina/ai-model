@@ -1,5 +1,4 @@
 import io
-
 from bson import ObjectId
 from source.models.training_data_model import TrainingDataset # Import the model defined above
 
@@ -28,6 +27,7 @@ class DatasetStorageService:
             system_prompt=metadata['system_prompt'],
             status=metadata['status'],
             sample_count=metadata['sample_count'],
+            parent_dataset_id=metadata['parent_dataset_id'],
             gridfs_id=str(gridfs_id)
         )
 

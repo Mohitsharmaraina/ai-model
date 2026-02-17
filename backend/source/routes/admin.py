@@ -1,13 +1,15 @@
-from typing import Annotated
+from typing import Annotated, Optional
 from openai import OpenAIError
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, HTTPException
 import io
+import os
 from io import BytesIO
 from source.dependencies import get_admin_user
 from source.utils.xlsx_or_csv_to_jsonl import process_mixed_data_v2
 from source.utils.training_file_gridfs_storage import DatasetStorageService
 from source.utils.validate_jsonl_file import validate_finetuning_jsonl, DatasetValidationError
 from source.models.training_data_model import TrainingDataset 
+import logging
 
 router = APIRouter(prefix="/api/v1/admin", tags=["Admin"])
 
@@ -15,7 +17,7 @@ router = APIRouter(prefix="/api/v1/admin", tags=["Admin"])
 async def convert_mixed_endpoint(
     req: Request,
     admin: Annotated[str, Depends(get_admin_user)],
-    dataset_name: str = Form(...),
+    dataset_name: Optional[str] = Form(None),
     file: UploadFile = File(...), 
     system_prompt: str = Form('''    You are a senior wind energy engineer specializing in structural loads analysis, control systems, and engineering tool development for utility-scale wind turbines.
 
@@ -44,6 +46,8 @@ You support topics including:
 Your responses should reflect industry-level rigor appropriate for experienced engineers.'''),
     
 ):
+        if not dataset_name:
+            dataset_name = os.path.splitext(file.filename)[0]
    
         # 1. Read raw bytes from the uploaded file
         content_bytes = await file.read()
@@ -57,12 +61,33 @@ Your responses should reflect industry-level rigor appropriate for experienced e
 
        # Validate BEFORE storing 
         try: 
-            validate_finetuning_jsonl(jsonl_str) 
+           result = validate_finetuning_jsonl(jsonl_str) 
         except DatasetValidationError as e: 
-            raise HTTPException(status_code=400, detail=str(e))
-       
+            logging.exception(f"Couldn't validate file : {str(e)}")
+            raise HTTPException(status_code=500, detail="Internal Server Error")
         # 2. Determine Stats
-        sample_count = len(jsonl_str.strip().split("\n"))
+        # sample_count = len(jsonl_str.strip().split("\n"))
+        sample_count = result["samples"]
+        version  = 1
+
+        # 3. check previous dataset used for successful training
+
+        latest_dataset = await TrainingDataset.find_one(
+            {
+                "is_active": True,
+                "status": "succeeded"
+            }
+        )
+        if latest_dataset:
+            previous_bytes = await DatasetStorageService.get_file_bytes(
+                req.app.state.gridfs_bucket,
+                latest_dataset.id
+            )
+            previous_str = previous_bytes.decode("utf-8")
+            jsonl_str = previous_str.strip() + "\n" + jsonl_str.strip()
+            version = latest_dataset.version + 1
+            sample_count = latest_dataset.sample_count + sample_count
+
 
         # 3. Store via Service
         try:
@@ -71,21 +96,23 @@ Your responses should reflect industry-level rigor appropriate for experienced e
                 jsonl_content=jsonl_str,
                 metadata={
                     "name": dataset_name,
-                    "version": 1, 
+                    "version": version, 
                     "system_prompt": system_prompt,
                     "sample_count": sample_count,
-                    "status": "locally validated"
+                    "status": "locally validated",
+                    "parent_dataset_id": str(latest_dataset.id) if latest_dataset else None
                 }
             )
             training_file_bytes = await DatasetStorageService.get_file_bytes( req.app.state.gridfs_bucket, str(new_entry.id))
-            print("file ready to pass to openai", training_file_bytes)
+
             return {"id": str(new_entry.id), "samples": sample_count, "status": "archived", "file_content": training_file_bytes}
         
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Database storage failed: {e}")
+            logging.exception(f"Database storage failed : {str(e)}")
+            raise HTTPException(status_code=500, detail="Internal server error")
         
 @router.post("/start-finetune/{dataset_id}")
-async def start_finetune(dataset_id: str, req: Request):
+async def start_finetune(dataset_id: str, req: Request,  admin: Annotated[str, Depends(get_admin_user)]):
 
     client = req.app.state.client
 
@@ -122,10 +149,11 @@ async def start_finetune(dataset_id: str, req: Request):
 
         if "file_response" in locals():
             client.files.delete(file_response.id)
-
+        logging.exception(f"OpenAI error: {str(e)}")
         raise HTTPException(
+            
             status_code=502,
-            detail=f"OpenAI error: {str(e)}"
+            detail="Internal server error"
         )
     except Exception as e:
         # Unexpected error
@@ -148,7 +176,7 @@ async def start_finetune(dataset_id: str, req: Request):
     }
 
 @router.get("/finetune-status/{dataset_id}")
-async def finetune_status(dataset_id: str, req: Request):
+async def finetune_status(dataset_id: str, req: Request,  admin: Annotated[str, Depends(get_admin_user)]):
 
     client = req.app.state.client
 

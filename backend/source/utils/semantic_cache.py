@@ -6,8 +6,9 @@ from redis.commands.search.query import Query
 from source.config.redis_connection import get_redis_client
 
 
-class SemanticCache:
-    def __init__(self,redis_client, index_name="semantic_cache_idx", vector_dim=384):
+class SemanticCache: 
+    # use vector_dim=1536 if using openai text-embedding-3-small model
+    def __init__(self,redis_client, index_name="semantic_cache_idx", vector_dim=384): 
         self.r = redis_client
         self.index_name = index_name
         self.vector_dim = vector_dim
