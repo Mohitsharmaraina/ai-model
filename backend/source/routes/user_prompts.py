@@ -6,6 +6,7 @@ from source.dependencies import get_current_user
 from source.utils.s3_upload import upload_to_s3
 from typing import Optional, List
 from source.utils.local_embeddings_generator import generate_embedding
+# from source.utils.openAI_embeddings_generator import generate_embedding
 from source.utils.gnerate_openai_query import build_openai_content, get_llm_response
 import logging
 
@@ -75,8 +76,8 @@ def is_cacheable_query(query, response):
     words = query.split()
     if len(words) < 6:
         return False
-    if len(response.split()) < 30:
-        return False
+    # if len(response.split()) < 30:
+    #     return False
     skip_words = ["hi", "hello", "thanks", "ok"]
     if query.lower().strip() in skip_words:
         return False
@@ -145,17 +146,20 @@ async def send_message(
     # ---------------- Semantic Cache Check for text queries ----------------
     embedding = None
     if (len(images)==0):
-        # 1. Generate embedding for the user text message
+        # 1. --------------------------------Generate embedding for the user text message--------------------------------
+        # embedding = await generate_embedding(request, message)     ----> for openai embedding generator
+
+        # -local embedding generator model-
         embedding = await generate_embedding(message)
 
-        # 2. Check cache
+        # 2. ------------------------Check cache------------------------
         cached_result = await semantic_cache.check_cache(embedding)
         print(f"Cache lookup result: {cached_result}")
         if cached_result:
             hit_turn_id = cached_result["turn_id"]
             hit_session_id = cached_result["session_id"]
 
-            # 2. Fetch the ACTUAL text from MongoDB
+            # Fetch the ACTUAL text from MongoDB
             # We find the session, and filter for just the specific turn
             cached_session = await ChatSession.find_one(
             ChatSession.session_id == hit_session_id
@@ -235,27 +239,27 @@ async def send_message(
     })
 
    
-    try:
-        response = client.responses.create(
-        model="gpt-4o-mini",
-        instructions=instructions,
-        input=openai_messages,
-        temperature=0.1,
-        max_output_tokens = 300
-        )
-    except Exception as e:
-        logging.exception("Unexpected error :", str(e))
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+    # try:
+    #     response = client.responses.create(
+    #     model="gpt-4o-mini",
+    #     instructions=instructions,
+    #     input=openai_messages,
+    #     temperature=0.1,
+    #     max_output_tokens = 300
+    #     )
+    # except Exception as e:
+    #     logging.exception("Unexpected error :", str(e))
+    #     raise HTTPException(status_code=500, detail="Internal Server Error")
      
 
-    ai_text = response.output_text
-    tokens_used = response.usage.total_tokens
-    input_tokens = response.usage.input_tokens
-    output_tokens = response.usage.output_tokens
+    # ai_text = response.output_text
+    # tokens_used = response.usage.total_tokens
+    # input_tokens = response.usage.input_tokens
+    # output_tokens = response.usage.output_tokens
 
-    # response = await get_llm_response(message or "Image query")
-    # ai_text = response["answer"]
-    # tokens_used = response["usage"]["total_tokens"]
+    response = await get_llm_response(message or "Image query")
+    ai_text = response["answer"]
+    tokens_used = response["usage"]["total_tokens"]
 
     turn.assistant = AssistantTurn(
         content=[TextContent(text=ai_text)],
@@ -278,7 +282,7 @@ async def send_message(
     
         )
 
-    return {"response": ai_text, "cache_used": False, "tokens_used":tokens_used, "input_tokens":input_tokens, "output_tokens":output_tokens}
+    return {"response": ai_text, "cache_used": False, "tokens_used":tokens_used}
 
 
 # Background function using Beanie's atomic update

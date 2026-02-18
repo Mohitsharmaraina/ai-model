@@ -6,7 +6,7 @@ from pydantic import Field
 
 class TrainingDataset(Document):
     dataset_name: str
-    version: int = 1
+    version: float = 1.0
     system_prompt: str
     sample_count: int
     status: str

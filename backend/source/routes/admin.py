@@ -68,15 +68,16 @@ Your responses should reflect industry-level rigor appropriate for experienced e
         # 2. Determine Stats
         # sample_count = len(jsonl_str.strip().split("\n"))
         sample_count = result["samples"]
-        version  = 1
+        version  = 1.0
 
         # 3. check previous dataset used for successful training
 
         latest_dataset = await TrainingDataset.find_one(
             {
-                "is_active": True,
+                # "is_active": True,
                 "status": "succeeded"
-            }
+            },
+            sort = [("version", -1)]
         )
         if latest_dataset:
             previous_bytes = await DatasetStorageService.get_file_bytes(
@@ -85,7 +86,7 @@ Your responses should reflect industry-level rigor appropriate for experienced e
             )
             previous_str = previous_bytes.decode("utf-8")
             jsonl_str = previous_str.strip() + "\n" + jsonl_str.strip()
-            version = latest_dataset.version + 1
+            version = latest_dataset.version + 0.1
             sample_count = latest_dataset.sample_count + sample_count
 
 
@@ -103,9 +104,9 @@ Your responses should reflect industry-level rigor appropriate for experienced e
                     "parent_dataset_id": str(latest_dataset.id) if latest_dataset else None
                 }
             )
-            training_file_bytes = await DatasetStorageService.get_file_bytes( req.app.state.gridfs_bucket, str(new_entry.id))
+            # training_file_bytes = await DatasetStorageService.get_file_bytes( req.app.state.gridfs_bucket, str(new_entry.id))
 
-            return {"id": str(new_entry.id), "samples": sample_count, "status": "archived", "file_content": training_file_bytes}
+            return {"id": str(new_entry.id), "samples": sample_count, "status": "archived", "message": "file uploaded successfuly"}
         
         except Exception as e:
             logging.exception(f"Database storage failed : {str(e)}")
@@ -140,7 +141,7 @@ async def start_finetune(dataset_id: str, req: Request,  admin: Annotated[str, D
 
         job = client.fine_tuning.jobs.create(
             training_file=file_response.id,
-            model="gpt-4o-mini"
+            model="gpt-4o-mini-2024-07-18"
         )
     except OpenAIError as e:
          # OpenAI-related error
@@ -191,7 +192,11 @@ async def finetune_status(dataset_id: str, req: Request,  admin: Annotated[str, 
             "message": dataset.last_event_message
         }
     
-    job = client.fine_tuning.jobs.retrieve(dataset.openai_job_id)
+    try:
+        job = client.fine_tuning.jobs.retrieve(dataset.openai_job_id)
+    except OpenAIError:
+        raise HTTPException(status_code=502, detail="Failed to fetch job status")
+
    
     updated = False
 
@@ -202,15 +207,22 @@ async def finetune_status(dataset_id: str, req: Request,  admin: Annotated[str, 
     if job.status == "succeeded" and dataset.fine_tuned_model != job.fine_tuned_model:
         dataset.fine_tuned_model = job.fine_tuned_model
         updated = True
+    
+    if job.status == "failed":
+        if job.error:
+            dataset.last_event_message = job.error.message
+        else:
+            dataset.last_event_message = "Fine-tuning failed without detailed error."
+        updated = True
 
     # only fetch event if job is running
 
     last_event_message = dataset.last_event_message
 
-    if job.status == "running":
+    if job.status in ["running", "failed"]:
          events = client.fine_tuning.jobs.list_events(
             fine_tuning_job_id=dataset.openai_job_id,
-            limit=1
+            limit=5
         )
          if events.data:
             new_message = events.data[0].message
@@ -226,6 +238,6 @@ async def finetune_status(dataset_id: str, req: Request,  admin: Annotated[str, 
     return {
         "status": job.status,
         "model": job.fine_tuned_model,
-        "message": last_event_message.data[0].message
+        "message": last_event_message
     }
 
