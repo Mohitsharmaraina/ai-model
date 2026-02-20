@@ -19,32 +19,27 @@ async def convert_mixed_endpoint(
     admin: Annotated[str, Depends(get_admin_user)],
     dataset_name: Optional[str] = Form(None),
     file: UploadFile = File(...), 
-    system_prompt: str = Form('''    You are a senior wind energy engineer specializing in structural loads analysis, control systems, and engineering tool development for utility-scale wind turbines.
-
-You provide technically accurate, engineering-grade responses grounded in wind turbine aerodynamics, structural mechanics, control theory, and aeroelastic simulation practices.
-
-When answering:
-- Use precise engineering terminology.
-- State assumptions clearly.
-- Include equations when relevant.
-- Use SI units unless specified otherwise.
-- Reference industry standards when applicable (IEC 61400, DNV, etc.).
-- Distinguish between theoretical explanation and practical implementation.
-- Avoid speculation; if data is insufficient, explicitly state assumptions.
-- Provide structured responses suitable for engineering documentation or internal technical review.
-
-You support topics including:
-- Load case development and IEC design load cases (DLCs)
-- Extreme and fatigue load analysis
-- Aeroelastic simulation tools (e.g., FAST, Bladed, HAWC2)
-- Pitch and torque control strategies
-- Stability analysis and controller tuning
-- Turbine dynamics (tower, blades, drivetrain)
-- Sensor filtering and signal processing
-- Tool development for automation and post-processing
-
-Your responses should reflect industry-level rigor appropriate for experienced engineers.'''),
+    system_prompt: str = Form('''You are a senior wind energy engineer specializing in structural loads analysis, control systems, and engineering tool development for utility-scale wind turbines.You provide technically accurate, engineering-grade responses grounded in wind turbine aerodynamics, structural mechanics, control theory, and aeroelastic simulation practices.Your responses should reflect industry-level rigor appropriate for experienced engineers.'''),
     
+#     When answering:
+# - Use precise engineering terminology.
+# - State assumptions clearly.
+# - Include equations when relevant.
+# - Use SI units unless specified otherwise.
+# - Reference industry standards when applicable (IEC 61400, DNV, etc.).
+# - Distinguish between theoretical explanation and practical implementation.
+# - Avoid speculation; if data is insufficient, explicitly state assumptions.
+# - Provide structured responses suitable for engineering documentation or internal technical review.
+
+# You support topics including:
+# - Load case development and IEC design load cases (DLCs)
+# - Extreme and fatigue load analysis
+# - Aeroelastic simulation tools (e.g., FAST, Bladed, HAWC2)
+# - Pitch and torque control strategies
+# - Stability analysis and controller tuning
+# - Turbine dynamics (tower, blades, drivetrain)
+# - Sensor filtering and signal processing
+# - Tool development for automation and post-processing
 ):
         if not dataset_name:
             dataset_name = os.path.splitext(file.filename)[0]
@@ -68,40 +63,43 @@ Your responses should reflect industry-level rigor appropriate for experienced e
         # 2. Determine Stats
         # sample_count = len(jsonl_str.strip().split("\n"))
         sample_count = result["samples"]
-        version  = 1.0
-
-        # 3. check previous dataset used for successful training
-
-        latest_dataset = await TrainingDataset.find_one(
-            {
-                # "is_active": True,
-                "status": "succeeded"
-            },
-            sort = [("version", -1)]
-        )
-        if latest_dataset:
-            previous_bytes = await DatasetStorageService.get_file_bytes(
-                req.app.state.gridfs_bucket,
-                latest_dataset.id
-            )
-            previous_str = previous_bytes.decode("utf-8")
-            jsonl_str = previous_str.strip() + "\n" + jsonl_str.strip()
-            version = latest_dataset.version + 0.1
-            sample_count = latest_dataset.sample_count + sample_count
 
 
-        # 3. Store via Service
+        # -----------------------------------------only if you want to append to previous dataset, otherwise skip to storage -----------------------------------------
+        # version  = 1.0
+
+        # # 3. check previous dataset used for successful training
+
+        # latest_dataset = await TrainingDataset.find_one(
+        #     {
+        #         # "is_active": True,
+        #         "status": "succeeded"
+        #     },
+        #     sort = [("version", -1)]
+        # )
+        # if latest_dataset:
+        #     previous_bytes = await DatasetStorageService.get_file_bytes(
+        #         req.app.state.gridfs_bucket,
+        #         latest_dataset.id
+        #     )
+        #     previous_str = previous_bytes.decode("utf-8")
+        #     jsonl_str = previous_str.strip() + "\n" + jsonl_str.strip()
+        #     version = latest_dataset.version + 0.1
+        #     sample_count = latest_dataset.sample_count + sample_count
+
+
+        # 3.--------------------------------------------- Store via Service---------------------------------------------
         try:
             new_entry = await DatasetStorageService.save_to_gridfs(
                 bucket=req.app.state.gridfs_bucket,
                 jsonl_content=jsonl_str,
                 metadata={
                     "name": dataset_name,
-                    "version": version, 
+                    # "version": version, 
                     "system_prompt": system_prompt,
                     "sample_count": sample_count,
                     "status": "locally validated",
-                    "parent_dataset_id": str(latest_dataset.id) if latest_dataset else None
+                    # "parent_dataset_id": str(latest_dataset.id) if latest_dataset else None
                 }
             )
             # training_file_bytes = await DatasetStorageService.get_file_bytes( req.app.state.gridfs_bucket, str(new_entry.id))
@@ -122,10 +120,16 @@ async def start_finetune(dataset_id: str, req: Request,  admin: Annotated[str, D
         raise HTTPException(status_code=404, detail="Dataset not found")
 
     # Prevent duplicate training
-    if dataset.status in ["queued", "running"]:
+    if dataset.status in ["queued", "running", "validating_files"]:
         raise HTTPException(
             status_code=400,
             detail="Fine-tuning already in progress"
+        )
+    # prevent new training if previous is succedded
+    if dataset.status == "succeeded":
+        raise HTTPException(
+            status_code=400,
+            detail="Model already fine-tuned on provided dataset successfully"
         )
     
     try:
@@ -138,10 +142,24 @@ async def start_finetune(dataset_id: str, req: Request,  admin: Annotated[str, D
             file=BytesIO(file_bytes),
             purpose="fine-tune"
         )
+        # find last successful fine-tune to use as base model
+        last_dataset = await TrainingDataset.find_one(
+            {
+                "status": "succeeded"
+            },
+            sort=[("created_at", -1)]
+        )
+        if last_dataset and last_dataset.fine_tuned_model:
+            base_model = last_dataset.fine_tuned_model
+        else:
+            base_model = "gpt-4o-2024-08-06"  # default base model
 
         job = client.fine_tuning.jobs.create(
             training_file=file_response.id,
-            model="gpt-4o-mini-2024-07-18"
+            model=base_model,
+            hyperparameters={
+                "n_epochs": 1,
+            }
         )
     except OpenAIError as e:
          # OpenAI-related error
@@ -169,6 +187,7 @@ async def start_finetune(dataset_id: str, req: Request,  admin: Annotated[str, D
     dataset.openai_file_id = file_response.id
     dataset.openai_job_id = job.id
     dataset.status = job.status  # likely "queued"
+    dataset.trained_from_model = base_model
     await dataset.save()
 
     return {
@@ -241,3 +260,69 @@ async def finetune_status(dataset_id: str, req: Request,  admin: Annotated[str, 
         "message": last_event_message
     }
 
+
+@router.post("/cancel-finetune/{dataset_id}")
+async def cancel_finetune(dataset_id: str, req: Request,  admin: Annotated[str, Depends(get_admin_user)]):
+
+    client = req.app.state.client
+
+    dataset = await TrainingDataset.get(dataset_id)
+    if not dataset:
+        raise HTTPException(status_code=404, detail="job not found")
+
+    if dataset.status in ["succeeded", "failed", "cancelled"]:
+        raise HTTPException(status_code=400, detail="Cannot cancel a completed job")
+
+    try:
+        response = client.fine_tuning.jobs.cancel(dataset.openai_job_id)
+    except OpenAIError:
+        raise HTTPException(status_code=502, detail="Failed to cancel fine-tuning job")
+
+    dataset.status = response.status  # should be "cancelled"
+    await dataset.save()
+
+    return {"message": "Fine-tuning job cancelled successfully"}
+
+@router.post("/pause-finetune/{dataset_id}")
+async def pause_finetune(dataset_id: str, req: Request,  admin: Annotated[str, Depends(get_admin_user)]):
+
+    client = req.app.state.client
+
+    dataset = await TrainingDataset.get(dataset_id)
+    if not dataset:
+        raise HTTPException(status_code=404, detail="job not found")
+
+    if dataset.status in ["succeeded", "failed", "cancelled"]:
+        raise HTTPException(status_code=400, detail="Cannot pause a completed job")
+
+    try:
+        response = client.fine_tuning.jobs.pause(dataset.openai_job_id)
+    except OpenAIError as e:
+        raise HTTPException(status_code=502, detail=f"Failed to pause fine-tuning job: {str(e)}")
+
+    dataset.status = response.status  # should be "paused"
+    await dataset.save()
+
+    return {"message": "Fine-tuning job paused successfully"}
+
+@router.post("/resume-finetune/{dataset_id}")
+async def resume_finetune(dataset_id: str, req: Request,  admin: Annotated[str, Depends(get_admin_user)]):
+
+    client = req.app.state.client
+
+    dataset = await TrainingDataset.get(dataset_id)
+    if not dataset:
+        raise HTTPException(status_code=404, detail="job not found")
+
+    if dataset.status in ["succeeded", "failed", "cancelled"]:
+        raise HTTPException(status_code=400, detail="Cannot resume a completed job")
+
+    try:
+        response = client.fine_tuning.jobs.resume(dataset.openai_job_id)
+    except OpenAIError as e:
+        raise HTTPException(status_code=502, detail=f"Failed to resume fine-tuning job: {str(e)}")
+
+    dataset.status = response.status  # should be "running"
+    await dataset.save()
+
+    return {"message": "Fine-tuning job resumed successfully"}

@@ -6,7 +6,7 @@ from pydantic import Field
 
 class TrainingDataset(Document):
     dataset_name: str
-    version: float = 1.0
+    # version: float = 1.0
     system_prompt: str
     sample_count: int
     status: str
@@ -16,7 +16,8 @@ class TrainingDataset(Document):
     last_event_message: Optional[str] = None
     gridfs_id:Annotated[str, Indexed()]
     is_active:bool= False
-    parent_dataset_id: Optional[str] = None
+    trained_from_model: Optional[str] = None
+    # parent_dataset_id: Optional[str] = None
     created_at: datetime = Field(default_factory= lambda: datetime.now(timezone.utc))
 
     class Settings:

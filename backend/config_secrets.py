@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     # Critical for Migration:
     # Set to True when you move to AWS ElastiCache Cluster
     REDIS_CLUSTER_MODE: bool = False
+
+    # MAIL CREDENTIALS
+    mail_host: str
+    mail_port: int
+    mail_username: str
+    mail_password: str
     
     # Superadmin credentials
     super_admin_email : str

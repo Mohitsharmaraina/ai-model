@@ -15,7 +15,7 @@ class DatasetStorageService:
         # 3. Upload the file binary
         file_bytes = jsonl_content.encode("utf-8")
         gridfs_id = await bucket.upload_from_stream(
-            filename=f"{metadata['name']}_v{metadata['version']}.jsonl",
+            filename=f"{metadata['name']}.jsonl",
             source=io.BytesIO(file_bytes),
             metadata={"content_type": "application/jsonl"}
         )
@@ -23,11 +23,11 @@ class DatasetStorageService:
         # 4. Create the Beanie Document record
         dataset_record = TrainingDataset(
             dataset_name=metadata['name'],
-            version=metadata['version'],
+            # version=metadata['version'],
             system_prompt=metadata['system_prompt'],
             status=metadata['status'],
             sample_count=metadata['sample_count'],
-            parent_dataset_id=metadata['parent_dataset_id'],
+            # parent_dataset_id=metadata['parent_dataset_id'],
             gridfs_id=str(gridfs_id)
         )
 
