@@ -44,6 +44,10 @@ class User(Document):
    
 
 # ------------------------------- Multimodal Content Schemas ------------------------
+
+class TitleUpdate(BaseModel):
+    title: str
+    
 class TextContent(BaseModel):
     type: Literal["text"] = "text"
     text: str

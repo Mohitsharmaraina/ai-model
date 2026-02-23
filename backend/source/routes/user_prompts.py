@@ -1,7 +1,7 @@
 
 from datetime import datetime, timezone
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, Request
-from source.models.user_models import ChatSession, User, ChatSession_view, TextContent, ImageContent, UserTurn, AssistantTurn, ChatTurn, TurnMetadata
+from source.models.user_models import ChatSession, User, ChatSession_view, TextContent, ImageContent, UserTurn, AssistantTurn, ChatTurn, TurnMetadata, TitleUpdate
 from source.dependencies import get_current_user
 from source.utils.s3_upload import upload_to_s3
 from typing import Optional, List
@@ -37,7 +37,7 @@ async def get_user_sessions(
 
         return sessions
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Internal Server Error", cause=str(e))
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
     
 
 
@@ -63,13 +63,40 @@ async def get_session_history(
 
         return session
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Internal Server Error", cause=str(e))
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
     
 
+# ---------------------------------------------------------
+# 3. UPDATE SINGLE SESSION (Updates Title when user changes it)
+# ---------------------------------------------------------
+@router.put("/sessions/{session_id}")
+async def update_session_title(
+    session_id: str,
+    title_update: TitleUpdate,
+    user: User = Depends(get_current_user)
+):
+    """
+    Updates the title of a specific chat session.
+    """
+    try:
+        session = await ChatSession.find_one(
+            ChatSession.session_id == session_id,
+            ChatSession.user_id == str(user.id)
+        )
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        # Update the title
+        session.title = title_update.title
+        await session.save()
+
+        return {"message": "Session title updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 
 # ---------------------------------------------------------
-# 3. SEND MESSAGE (Handles "New Chat" & "Continue Chat")
+# 4. SEND MESSAGE (Handles "New Chat" & "Continue Chat")
 # ---------------------------------------------------------
 
 def is_cacheable_query(query, response):
