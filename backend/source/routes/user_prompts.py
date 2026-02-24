@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, Request
 from source.models.user_models import ChatSession, User, ChatSession_view, TextContent, ImageContent, UserTurn, AssistantTurn, ChatTurn, TurnMetadata, TitleUpdate
-from source.dependencies import get_current_user
+from source.dependencies import get_current_user, get_token_from_cookie
 from source.utils.s3_upload import upload_to_s3
 from typing import Optional, List
 from source.utils.local_embeddings_generator import generate_embedding

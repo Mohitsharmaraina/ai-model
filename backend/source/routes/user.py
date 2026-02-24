@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from passlib.context import CryptContext
 from pymongo.errors import DuplicateKeyError
 from ..rate_limiting import limiter
+from ..dependencies import get_current_user, get_token_from_cookie
 
 router = APIRouter(prefix="/api/v1/user", tags=["users"])
 
@@ -38,8 +39,8 @@ async def register_user(request:Request, registerRequest: RegisterRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal Server Error", cause=str(e))
 
-@router.post("/login", response_model=Token,)
-@limiter.limit("5/hour")
+# @limiter.limit("5/hour")
+@router.post("/login")
 async def login_user(request:Request, response: Response, form_data:Annotated[OAuth2PasswordRequestForm, Depends()]):
     user = await User.find_one(User.email == form_data.username.strip().lower())
     if not user or not verify_password(form_data.password, user.password):
@@ -57,13 +58,17 @@ async def login_user(request:Request, response: Response, form_data:Annotated[OA
         response.set_cookie(key="access_token", value=encoded_jwt, httponly=True, max_age=settings.access_token_expire_hours * 3600)
 
 
-        return {"access_token": encoded_jwt, "token_type": "bearer"}
+        return {"success": True, "message": "Login successful", "user": user}
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Could not validate credentials",
         )
     
+@router.post("/logout")
+async def logout_user(response: Response):
+    response.delete_cookie(key="access_token")
+    return {"message": "Logged out successfully", "success": True}
 
 @router.get("/getUser", response_model=User)
 async def get_current_user(token: Annotated[str, Depends(OAuth2PasswordBearer(tokenUrl="/api/v1/user/login"))]):
@@ -85,3 +90,23 @@ async def get_current_user(token: Annotated[str, Depends(OAuth2PasswordBearer(to
         raise credentials_exception
     
     return user
+
+@router.get("/validate-token")
+async def validate_token(token:str = Depends(get_token_from_cookie)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired token",
+    )
+    try:
+        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    
+    user = await User.get(user_id)
+    if user is None:
+        raise credentials_exception
+    
+    return {"message": "Token is valid", "user": user, "isAdmin": user.isAdmin, "success": True}

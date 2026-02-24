@@ -1,6 +1,6 @@
 # dependencies.py
 from typing import Annotated
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from config_secrets import settings
@@ -14,14 +14,27 @@ from config_secrets import settings
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/user/login")
 oauth2_scheme_super = OAuth2PasswordBearer(tokenUrl="/api/v1/super_admin/login")
 
+
+# This is the DEPENDENCY to get the token  from browser cookie (for routes that require authentication)
+
+async def get_token_from_cookie(request: Request) -> str:
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No access token found in cookies",
+        )
+    
+    return token
+
 # This is the DEPENDENCY to get the current user
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> User:
+async def get_current_user(request: Request) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+    token = request.cookies.get("access_token")
     try:
         # Decode the token
         payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])

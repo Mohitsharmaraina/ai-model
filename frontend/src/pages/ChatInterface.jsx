@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import MessageRenderer from "../utils/MessageRenderer";
 import {
   MessageSquare,
@@ -13,10 +15,14 @@ import {
   Pencil,
   X,
   Check,
+  LogOut,
 } from "lucide-react";
 
 export default function AIChatInterface() {
+  const { user, logout } = useAuth();
+
   // --- STATE ---
+  const navigate = useNavigate();
   const [isDarkMode, setIsDarkMode] = useState(() => {
     // This ensures React matches what the index.html script just did
     if (typeof window !== "undefined") {
@@ -77,14 +83,12 @@ export default function AIChatInterface() {
     if (trimmedValue && trimmedValue !== session.title) {
       try {
         const response = await fetch(
-          `http://127.0.0.1:8000/api/v1/user_prompts/sessions/${session.session_id}`,
+          `http://localhost:8000/api/v1/user_prompts/sessions/${session.session_id}`,
           {
             method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2OTgwOWI0NjJmZWViMTUzOGVkNjJhYTMiLCJpc0FkbWluIjoiVHJ1ZSIsImV4cCI6MTc3MTg2MzY5MH0.7XOJWmt_piGA0Yeox4LNmNyo6rqjWujNpvLeJWxM9So"}`,
-            },
+
             body: JSON.stringify({ title: trimmedValue }),
+            credentials: "include",
           },
         );
         if (!response.ok) {
@@ -125,11 +129,9 @@ export default function AIChatInterface() {
   const getAllSessionsForCurrentUser = async () => {
     try {
       const response = await fetch(
-        "http://127.0.0.1:8000/api/v1/user_prompts/sessions",
+        "http://localhost:8000/api/v1/user_prompts/sessions",
         {
-          headers: {
-            Authorization: `Bearer ${"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2OTgwOWI0NjJmZWViMTUzOGVkNjJhYTMiLCJpc0FkbWluIjoiVHJ1ZSIsImV4cCI6MTc3MTg2MzY5MH0.7XOJWmt_piGA0Yeox4LNmNyo6rqjWujNpvLeJWxM9So"}`,
-          },
+          credentials: "include",
         },
       );
       if (!response.ok) {
@@ -160,11 +162,9 @@ export default function AIChatInterface() {
 
     try {
       const response = await fetch(
-        `http://127.0.0.1:8000/api/v1/user_prompts/sessions/${currentSessionId}`,
+        `http://localhost:8000/api/v1/user_prompts/sessions/${currentSessionId}`,
         {
-          headers: {
-            Authorization: `Bearer ${"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2OTgwOWI0NjJmZWViMTUzOGVkNjJhYTMiLCJpc0FkbWluIjoiVHJ1ZSIsImV4cCI6MTc3MTg2MzY5MH0.7XOJWmt_piGA0Yeox4LNmNyo6rqjWujNpvLeJWxM9So"}`,
-          },
+          credentials: "include",
         },
       );
       if (!response.ok) {
@@ -185,6 +185,24 @@ export default function AIChatInterface() {
       console.error("Error fetching messages:", error);
     }
   };
+  // --------------call handle new chat on component mount if there is no session in local storage----------------
+
+  useEffect(() => {
+    if (!localStorage.getItem("currentSessionId")) {
+      handleNewChat();
+    }
+  }, []);
+
+  // ------------- fetch sessions when first message is created in new session--------------------
+
+  useEffect(() => {
+    if (
+      messages?.length === 1 &&
+      !sessions?.find((s) => s.session_id === currentSessionId)
+    ) {
+      getAllSessionsForCurrentUser();
+    }
+  }, [messages]);
 
   // --- HANDLERS ---
   const handleNewChat = () => {
@@ -194,7 +212,6 @@ export default function AIChatInterface() {
     setCurrentSessionId(session_id);
     localStorage.setItem("currentSessionId", session_id);
     setMessages([]);
-    getAllSessionsForCurrentUser(); // Refresh session list to include the new session
   };
 
   const handleNewFolder = () => {
@@ -235,13 +252,11 @@ export default function AIChatInterface() {
     clearImage();
     try {
       const response = await fetch(
-        "http://127.0.0.1:8000/api/v1/user_prompts/chat",
+        "http://localhost:8000/api/v1/user_prompts/chat",
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2OTgwOWI0NjJmZWViMTUzOGVkNjJhYTMiLCJpc0FkbWluIjoiVHJ1ZSIsImV4cCI6MTc3MTg2MzY5MH0.7XOJWmt_piGA0Yeox4LNmNyo6rqjWujNpvLeJWxM9So"}`,
-          },
           body: formData,
+          credentials: "include",
         },
       );
 
@@ -305,12 +320,19 @@ export default function AIChatInterface() {
             <Plus size={18} />
             <span className="font-medium text-sm">New Chat</span>
           </button>
-          <button
+          {/* <button
             onClick={handleNewFolder}
             className="flex items-center w-full gap-2 px-3 py-2 bg-transparent hover:bg-gray-200 dark:hover:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg transition-colors text-sm"
           >
             <FolderPlus size={18} />
             <span>New Folder</span>
+          </button> */}
+          <button
+            onClick={logout}
+            className="flex items-center w-full gap-2 px-3 py-2 bg-transparent hover:bg-gray-200 dark:hover:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg transition-colors text-sm"
+          >
+            <LogOut size={18} />
+            <span className="font-medium text-sm">Logout</span>
           </button>
         </div>
 
@@ -381,9 +403,11 @@ export default function AIChatInterface() {
               <User size={18} className="text-blue-600 dark:text-blue-300" />
             </div>
             <div className="truncate">
-              <div className="text-sm font-medium truncate">Alex Developer</div>
+              <div className="text-sm font-medium truncate">
+                {user?.full_name || "User"}
+              </div>
               <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                alex@example.com
+                {user?.email || "user@example.com"}
               </div>
             </div>
           </div>
