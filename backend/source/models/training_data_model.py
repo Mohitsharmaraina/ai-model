@@ -14,6 +14,7 @@ class TrainingDataset(Document):
     openai_job_id: Optional[str]  =None
     fine_tuned_model : Optional[str] = None
     last_event_message: Optional[str] = None
+    last_event_id: Optional[str] = None
     gridfs_id:Annotated[str, Indexed()]
     is_active:bool= False
     trained_from_model: Optional[str] = None

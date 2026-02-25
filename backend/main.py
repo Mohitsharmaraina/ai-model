@@ -48,7 +48,7 @@ app = FastAPI(lifespan=lifespan, title="AI Model Backend API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Adjust this to your frontend's URL
+    allow_origins=["http://localhost:5173", "http://localhost:5174"],  # Adjust this to your frontend's URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]

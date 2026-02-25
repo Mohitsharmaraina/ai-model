@@ -1,3 +1,4 @@
+from asyncio import events
 from typing import Annotated, Optional
 from openai import OpenAIError
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, HTTPException
@@ -109,7 +110,12 @@ async def convert_mixed_endpoint(
         except Exception as e:
             logging.exception(f"Database storage failed : {str(e)}")
             raise HTTPException(status_code=500, detail="Internal server error")
-        
+# --------------------getting list of trained models------------------------------
+@router.get("/trained-models")
+async def get_trained_models(req: Request, admin: Annotated[str, Depends(get_admin_user)]):
+    models = await TrainingDataset.find({"status": "succeeded"}).to_list()
+    return models
+
 @router.post("/start-finetune/{dataset_id}")
 async def start_finetune(dataset_id: str, req: Request,  admin: Annotated[str, Depends(get_admin_user)]):
 
@@ -157,13 +163,14 @@ async def start_finetune(dataset_id: str, req: Request,  admin: Annotated[str, D
         job = client.fine_tuning.jobs.create(
             training_file=file_response.id,
             model=base_model,
-            hyperparameters={
-                "n_epochs": 1,
-            }
+            # hyperparameters={
+            #     "n_epochs": 1,
+            # }
         )
     except OpenAIError as e:
          # OpenAI-related error
         dataset.status = "error"
+        dataset.last_event_message = f" failed: {str(e)}"
         await dataset.save()
 
         if "file_response" in locals():
@@ -177,6 +184,7 @@ async def start_finetune(dataset_id: str, req: Request,  admin: Annotated[str, D
     except Exception as e:
         # Unexpected error
         dataset.status = "error"
+        dataset.last_event_message = f"failed: {str(e)}"
         await dataset.save()
 
         raise HTTPException(
@@ -196,68 +204,78 @@ async def start_finetune(dataset_id: str, req: Request,  admin: Annotated[str, D
     }
 
 @router.get("/finetune-status/{dataset_id}")
-async def finetune_status(dataset_id: str, req: Request,  admin: Annotated[str, Depends(get_admin_user)]):
-
+async def finetune_status(dataset_id: str, req: Request, admin: Annotated[str, Depends(get_admin_user)]):
     client = req.app.state.client
 
     dataset = await TrainingDataset.get(dataset_id)
     if not dataset:
         raise HTTPException(status_code=404, detail="job not found")
 
-    if dataset.status in ["succeeded", "failed", "cancelled"]:
-        return {
-            "status": dataset.status,
-            "model": dataset.fine_tuned_model,
-            "message": dataset.last_event_message
-        }
-    
+    # If there's no job id, you can decide what to do (optional guard)
+    if not dataset.openai_job_id:
+        return {"status": dataset.status, "model": dataset.fine_tuned_model, "events": []}
+
     try:
         job = client.fine_tuning.jobs.retrieve(dataset.openai_job_id)
     except OpenAIError:
         raise HTTPException(status_code=502, detail="Failed to fetch job status")
 
-   
     updated = False
+    events_out: list[str] = []
 
+    # Sync status
     if dataset.status != job.status:
         dataset.status = job.status
         updated = True
 
+    # Sync model when finished
     if job.status == "succeeded" and dataset.fine_tuned_model != job.fine_tuned_model:
         dataset.fine_tuned_model = job.fine_tuned_model
         updated = True
-    
+
+    # Capture error message on failure (if available)
     if job.status == "failed":
-        if job.error:
-            dataset.last_event_message = job.error.message
-        else:
-            dataset.last_event_message = "Fine-tuning failed without detailed error."
+        msg = job.error.message if getattr(job, "error", None) else "Training failed. Try again with a different dataset."
+        if dataset.last_event_message != msg:
+            dataset.last_event_message = msg
+            updated = True
+
+    # Decide when to poll events:
+    # - definitely during running
+    # - optionally during failed/succeeded to catch last messages
+    if job.status in ["validating_files", "queued", "running", "failed", "succeeded", "cancelled"]:
+        events = client.fine_tuning.jobs.list_events(
+    fine_tuning_job_id=dataset.openai_job_id,
+    limit=100
+)
+
+    # normalize to oldest -> newest
+    events_list = list(reversed(events.data))
+
+    start_idx = 0
+    if dataset.last_event_id:
+        for i, e in enumerate(events_list):
+            if e.id == dataset.last_event_id:
+                start_idx = i + 1
+                break
+
+    new_events = events_list[start_idx:]
+
+    if new_events:
+        dataset.last_event_id = new_events[-1].id
+        dataset.last_event_message = new_events[-1].message
         updated = True
-
-    # only fetch event if job is running
-
-    last_event_message = dataset.last_event_message
-
-    if job.status in ["running", "failed"]:
-         events = client.fine_tuning.jobs.list_events(
-            fine_tuning_job_id=dataset.openai_job_id,
-            limit=5
-        )
-         if events.data:
-            new_message = events.data[0].message
-
-            if dataset.last_event_message != new_message:
-                dataset.last_event_message = new_message
-                last_event_message = new_message
-                updated = True
+        events_out = [e.message for e in new_events]
+    else:
+        events_out = []
 
     if updated:
-        await dataset.save()   # Only ONE write
+        await dataset.save()
 
     return {
-        "status": job.status,
-        "model": job.fine_tuned_model,
-        "message": last_event_message
+        "status": job.status,                 # could be validating_files/queued/running/paused/succeeded/failed/cancelled
+        "model": job.fine_tuned_model,        # None until succeeded
+        "events": events_out,                 # only new events since last_event_id
     }
 
 
