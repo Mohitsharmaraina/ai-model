@@ -172,13 +172,35 @@ export default function AIChatInterface() {
       }
 
       const messages = await response.json();
-      const turns = messages.turns?.map((turn) => ({
-        key: turn.turn_id,
-        session_id: messages.session_id,
-        turn_id: turn.turn_id,
-        user_query: turn.user.content[0].text,
-        model_response: turn.assistant.content[0].text,
-      }));
+
+      const turns = messages.turns?.map((turn) => {
+        const userContent = turn.user?.content || [];
+        const assistantContent = turn.assistant?.content || [];
+
+        // Extract text safely
+        const userText = userContent.find((c) => c.type === "text")?.text || "";
+
+        const assistantText =
+          assistantContent.find((c) => c.type === "text")?.text || "";
+
+        // Extract image URLs
+        const userImages = userContent
+          .filter((c) => c.type === "image_url")
+          .map((c) => ({
+            preview: null, // no preview after refresh
+            final: c.image_url, // S3 URL
+          }));
+
+        return {
+          key: turn.turn_id,
+          session_id: messages.session_id,
+          turn_id: turn.turn_id,
+          user_query: userText,
+          user_images: userImages,
+          model_response: assistantText,
+        };
+      });
+
       console.log("Fetched messages:", messages.turns);
       setMessages(turns);
     } catch (error) {
@@ -243,6 +265,12 @@ export default function AIChatInterface() {
       turn_id: crypto.randomUUID(),
       session_id,
       user_query: userMsg,
+      user_images: [
+        {
+          preview_url: imagePreview,
+          final: null, // This will be updated with the actual URL after upload
+        },
+      ],
       model_response: "AI is typing...", // Placeholder until we get the real response
     };
 
@@ -265,7 +293,14 @@ export default function AIChatInterface() {
         setMessages((prev) =>
           prev.map((m) =>
             m.turn_id === userTurn.turn_id
-              ? { ...m, model_response: data.response } // Assuming 'data' matches your turn structure
+              ? {
+                  ...m,
+                  model_response: data.response,
+                  user_images: data.image_urls?.map((url) => ({
+                    preview: null,
+                    final: url,
+                  })),
+                } // Assuming 'data' matches your turn structure
               : m,
           ),
         );
@@ -281,6 +316,10 @@ export default function AIChatInterface() {
                 ...m,
                 model_response:
                   "Couldn't generate response! Try again later :(",
+                user_images: data.image_urls?.map((url) => ({
+                  preview: null,
+                  final: url,
+                })),
               }
             : m,
         ),
@@ -297,7 +336,8 @@ export default function AIChatInterface() {
     if (selectedFile) {
       setFile(selectedFile);
       const reader = new FileReader();
-      setImagePreview(URL.createObjectURL(selectedFile));
+      const previewUrl = URL.createObjectURL(selectedFile);
+      setImagePreview(previewUrl);
     }
   };
 
@@ -439,8 +479,26 @@ export default function AIChatInterface() {
             <React.Fragment key={turn.turn_id}>
               {/* 1. USER QUERY (Right Aligned) */}
               <div className="flex w-full justify-end">
-                <div className="max-w-[75%] rounded-2xl p-4 bg-blue-600 text-white rounded-br-sm shadow-sm">
-                  <p className="text-sm leading-relaxed">{turn.user_query}</p>
+                <div className="max-w-[60%] space-y-2">
+                  {turn.user_images?.length > 0 && (
+                    <div className="rounded-2xl overflow-hidden shadow-md">
+                      {turn.user_images?.map((img, index) => (
+                        <img
+                          key={index}
+                          src={img.final || img.preview}
+                          className="w-52 h-52 object-cover rounded-xl"
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {turn.user_query && (
+                    <div className="rounded-2xl px-4 py-3 bg-blue-600 text-white rounded-br-sm shadow-sm">
+                      <p className="text-sm leading-relaxed">
+                        {turn.user_query}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 

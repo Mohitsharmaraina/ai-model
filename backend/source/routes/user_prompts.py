@@ -217,7 +217,7 @@ async def send_message(
                 # Save turn asynchronously
                 background_tasks.add_task(save_turn_to_mongo, session, turn)
 
-                return {"response": found_text, "cache_used": True, "tokens_used":0}
+                return {"response": found_text, "cache_used": True, "tokens_used":0, "image_urls": []}
 
 
     # ---------------- Call openAI Model ----------------
@@ -226,21 +226,13 @@ async def send_message(
     client = request.app.state.client
 
     # 2. generate model context using previous messages
-    MAX_HISTORY_TURNS = 1
+    MAX_HISTORY_TURNS = 2
     recent_turns = session.turns[-MAX_HISTORY_TURNS:]
 
     openai_messages = []
 
     # Add system via instructions (cleaner)
-    instructions = '''You are a senior wind energy engineer.
-                    You can analyze images provided in the input.
-                    When an image is included, base your response strictly on visible features in the image.
-                    Do not claim inability to view images.
-                    Provide technically rigorous, concise responses using SI units.
-                    Avoid introductory commentary.
-                    Target response length: 200 tokens.
-                    
-                    '''
+    instructions = '''You are PZWInd AI Chatbot expertise in Aerolasticity, Loads, Controls, Stability and Siting of wind turbine.'''
 
     # Add history
     for past_turn in recent_turns:
@@ -266,27 +258,27 @@ async def send_message(
     })
 
    
-    # try:
-    #     response = client.responses.create(
-    #     model="gpt-4o-mini",
-    #     instructions=instructions,
-    #     input=openai_messages,
-    #     temperature=0.1,
-    #     max_output_tokens = 300
-    #     )
-    # except Exception as e:
-    #     logging.exception("Unexpected error :", str(e))
-    #     raise HTTPException(status_code=500, detail="Internal Server Error")
+    try:
+        response = client.responses.create(
+        model="ft:gpt-4o-2024-08-06:personal::DDQIMIYc",
+        instructions=instructions,
+        input=openai_messages,
+        temperature=0.1,
+        max_output_tokens = 500
+        )
+    except Exception as e:
+        logging.exception("Unexpected error :", str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
      
 
-    # ai_text = response.output_text
-    # tokens_used = response.usage.total_tokens
+    ai_text = response.output_text
+    tokens_used = response.usage.total_tokens
     # input_tokens = response.usage.input_tokens
     # output_tokens = response.usage.output_tokens
 
-    response = await get_llm_response(message or "Image query")
-    ai_text = response["answer"]
-    tokens_used = response["usage"]["total_tokens"]
+    # response = await get_llm_response(message or "Image query")
+    # ai_text = response["answer"]
+    # tokens_used = response["usage"]["total_tokens"]
 
     turn.assistant = AssistantTurn(
         content=[TextContent(text=ai_text)],
@@ -309,7 +301,7 @@ async def send_message(
     
         )
 
-    return {"response": ai_text, "cache_used": False, "tokens_used":tokens_used}
+    return {"response": ai_text, "cache_used": False, "tokens_used":tokens_used, "image_urls":[img.image_url for img in user_content if isinstance(img, ImageContent)]}
 
 
 # Background function using Beanie's atomic update

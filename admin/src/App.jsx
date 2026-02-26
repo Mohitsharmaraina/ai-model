@@ -1,5 +1,3 @@
-import React from "react";
-import ThemeToggler from "./utils/ThemeToggler";
 import AdminPanel from "./pages/Dashboard";
 import FineTuningView from "./pages/FineTuning";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
@@ -8,7 +6,6 @@ const App = () => {
   return (
     <Router>
       <div className="App">
-        <ThemeToggler />
         <Routes>
           <Route path="/" element={<AdminPanel />} />
           <Route path="/finetuning" element={<FineTuningView />} />
