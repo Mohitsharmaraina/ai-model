@@ -11,6 +11,7 @@ import {
   Sun,
   Moon,
   User,
+  Globe,
   MoreVertical,
   Pencil,
   X,
@@ -56,6 +57,7 @@ export default function AIChatInterface() {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
   const [editingSessionId, setEditingSessionId] = useState(null);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -256,6 +258,9 @@ export default function AIChatInterface() {
     const formData = new FormData();
     formData.append("session_id", session_id);
     formData.append("message", userMsg);
+    if (webSearchEnabled) {
+      formData.append("web_search", webSearchEnabled);
+    }
 
     if (file) {
       formData.append("images", file);
@@ -279,6 +284,13 @@ export default function AIChatInterface() {
     setInputText("");
     clearImage();
     try {
+      console.log(
+        "Sending message with formData:",
+        session_id,
+        userMsg,
+        file,
+        webSearchEnabled,
+      );
       const response = await fetch(
         "http://localhost:8000/api/v1/user_prompts/chat",
         {
@@ -475,42 +487,50 @@ export default function AIChatInterface() {
         {/* Chat Messages Area */}
 
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
-          {messages?.map((turn) => (
-            <React.Fragment key={turn.turn_id}>
-              {/* 1. USER QUERY (Right Aligned) */}
-              <div className="flex w-full justify-end">
-                <div className="max-w-[60%] space-y-2">
-                  {turn.user_images?.length > 0 && (
-                    <div className="rounded-2xl overflow-hidden shadow-md">
-                      {turn.user_images?.map((img, index) => (
-                        <img
-                          key={index}
-                          src={img.final || img.preview}
-                          className="w-52 h-52 object-cover rounded-xl"
-                        />
-                      ))}
-                    </div>
-                  )}
+          {messages?.map((turn) => {
+            const validImages = (turn.user_images || []).filter(
+              (img) => img?.final || img?.preview,
+            );
+            return (
+              <React.Fragment key={turn.turn_id}>
+                {/* 1. USER QUERY (Right Aligned) */}
+                <div className="flex w-full justify-end">
+                  <div
+                    className={`max-w-[60%] ${validImages.length ? "space-y-2" : ""}`}
+                  >
+                    {validImages.length > 0 && (
+                      <div className="rounded-2xl overflow-hidden shadow-md">
+                        {validImages.map((img, index) => (
+                          <img
+                            key={index}
+                            src={img.final || img.preview}
+                            className="w-52 h-52 object-cover rounded-xl"
+                            alt="uploaded"
+                          />
+                        ))}
+                      </div>
+                    )}
 
-                  {turn.user_query && (
-                    <div className="rounded-2xl px-4 py-3 bg-blue-600 text-white rounded-br-sm shadow-sm">
-                      <p className="text-sm leading-relaxed">
-                        {turn.user_query}
-                      </p>
-                    </div>
-                  )}
+                    {turn.user_query && (
+                      <div className="rounded-2xl px-4 py-3 bg-blue-600 text-white rounded-br-sm shadow-sm">
+                        <p className="text-sm leading-relaxed">
+                          {turn.user_query}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {/* 2. MODEL RESPONSE (Left Aligned) */}
-              <div className="flex w-full justify-start">
-                <div className="max-w-[75%] rounded-2xl p-4 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-bl-sm shadow-sm overflow-x-auto">
-                  {/* If your model returns markdown, you'd use a markdown library here */}
-                  <MessageRenderer content={turn.model_response} />
+                {/* 2. MODEL RESPONSE (Left Aligned) */}
+                <div className="flex w-full justify-start">
+                  <div className="max-w-[75%] rounded-2xl p-4 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-bl-sm shadow-sm overflow-x-auto">
+                    {/* If your model returns markdown, you'd use a markdown library here */}
+                    <MessageRenderer content={turn.model_response} />
+                  </div>
                 </div>
-              </div>
-            </React.Fragment>
-          ))}
+              </React.Fragment>
+            );
+          })}
         </div>
 
         {/* Input Area */}
@@ -559,6 +579,14 @@ export default function AIChatInterface() {
               placeholder="Message the AI model..."
               className="flex-1 bg-transparent border-none outline-none text-sm px-2 text-gray-800 dark:text-gray-200 placeholder-gray-400"
             />
+            <button
+              type="button"
+              onClick={() => setWebSearchEnabled(!webSearchEnabled)}
+              className={`p-2 ${webSearchEnabled ? "text-blue-600 bg-blue-100 dark:bg-blue-900" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"} rounded-lg transition-colors`}
+              title="Web Search"
+            >
+              <Globe size={20} />
+            </button>
 
             <button
               type="submit"

@@ -1,6 +1,7 @@
 
 from datetime import datetime, timezone
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, Request
+from openai import OpenAIError
 from source.models.user_models import ChatSession, User, ChatSession_view, TextContent, ImageContent, UserTurn, AssistantTurn, ChatTurn, TurnMetadata, TitleUpdate
 from source.dependencies import get_current_user, get_token_from_cookie
 from source.utils.s3_upload import upload_to_s3
@@ -115,11 +116,13 @@ async def send_message(
     request: Request,
     session_id: str = Form(...),
     message:str = Form(...),
+    web_search: Optional[bool] = Form(False),
     # images: Optional[List[UploadFile]] = File(None),
     images: Optional[List[UploadFile]] = File(None),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     user: User = Depends(get_current_user),
 ):
+    print("web search value:", web_search, "type:", type(web_search)) 
     #pull pre=initialized   cache   from app state
     semantic_cache = request.app.state.semantic_cache
     # ---------------- Normalize ----------------
@@ -232,7 +235,7 @@ async def send_message(
     openai_messages = []
 
     # Add system via instructions (cleaner)
-    instructions = '''You are PZWInd AI Chatbot expertise in Aerolasticity, Loads, Controls, Stability and Siting of wind turbine.'''
+    instructions = '''You are PZWInd AI Chatbot.'''
 
     # Add history
     for past_turn in recent_turns:
@@ -257,21 +260,54 @@ async def send_message(
         "content": openai_content
     })
 
+    if web_search:
+        instructions += """
+                        If web search is used:
+                        - Prefer authoritative sources
+                        - Cross-check information if possible
+                        - Mention uncertainty when information conflicts
+                        - Do not fabricate missing facts
+                        - Clearly indicate if data may be outdated
+                        """
+        tools = [
+            {"type": "web_search"}
+        ]
+
    
     try:
         response = client.responses.create(
-        model="ft:gpt-4o-2024-08-06:personal::DDQIMIYc",
+        model="ft:gpt-4o-2024-08-06:personal::DDmJLoWY",
+        # model="gpt-4o-2024-08-06",
         instructions=instructions,
         input=openai_messages,
-        temperature=0.1,
-        max_output_tokens = 500
+        temperature=0.7,
+        max_output_tokens = 5000,
+        tools=tools if web_search else None
         )
+    except OpenAIError as e:
+        logging.exception("OpenAI API error: %s", str(e))
+        raise HTTPException(status_code=502, detail="Error communicating with AI service")
     except Exception as e:
         logging.exception("Unexpected error :", str(e))
         raise HTTPException(status_code=500, detail="Internal Server Error")
      
 
-    ai_text = response.output_text
+    ai_text = ""
+    citations = []
+
+    for item in response.output:
+        if item.type == "message":
+            for content in item.content:
+                if content.type == "output_text":
+                    ai_text += content.text
+
+                if hasattr(content, "annotations") and content.annotations:
+                    for ann in content.annotations:
+                        if ann.type == "url_citation":
+                            citations.append({
+                                "title": ann.title,
+                                "url": ann.url
+                            })
     tokens_used = response.usage.total_tokens
     # input_tokens = response.usage.input_tokens
     # output_tokens = response.usage.output_tokens
@@ -301,7 +337,7 @@ async def send_message(
     
         )
 
-    return {"response": ai_text, "cache_used": False, "tokens_used":tokens_used, "image_urls":[img.image_url for img in user_content if isinstance(img, ImageContent)]}
+    return {"response": ai_text, "citations": citations, "web_search_used": len(citations)>0,"cache_used": False, "tokens_used":tokens_used, "image_urls":[img.image_url for img in user_content if isinstance(img, ImageContent)], }
 
 
 # Background function using Beanie's atomic update

@@ -43,6 +43,14 @@ class Settings(BaseSettings):
     super_admin_email : str
     super_admin_password : str
 
+    # Clerk credentials
+    clerk_publishable_key: str
+    clerk_secret_key: str
+    clerk_jwks_url: str
+    clerk_webhook_secret: str
+
+    frontend_url: str
+
     # Tells Pydantic to read from a .env file
     model_config = SettingsConfigDict(env_file=".env")
 
