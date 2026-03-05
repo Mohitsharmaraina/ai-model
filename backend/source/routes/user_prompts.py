@@ -2,8 +2,9 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, Request
 from openai import OpenAIError
-from source.models.user_models import ChatSession, User, ChatSession_view, TextContent, ImageContent, UserTurn, AssistantTurn, ChatTurn, TurnMetadata, TitleUpdate
+from source.models.user_models import ChatSession, User, ChatSession_view, TextContent, ImageContent, UserTurn, AssistantTurn, ChatTurn, TurnMetadata, TitleUpdate, ActiveModelProjection
 from source.dependencies import get_current_user, get_token_from_cookie
+from source.models.training_data_model import TrainingDataset
 from source.utils.s3_upload import upload_to_s3
 from typing import Optional, List
 from source.utils.local_embeddings_generator import generate_embedding
@@ -116,6 +117,7 @@ async def send_message(
     request: Request,
     session_id: str = Form(...),
     message:str = Form(...),
+    model: str = Form("gpt-4o-2024-08-06"),
     web_search: Optional[bool] = Form(False),
     # images: Optional[List[UploadFile]] = File(None),
     images: Optional[List[UploadFile]] = File(None),
@@ -276,7 +278,7 @@ async def send_message(
    
     try:
         response = client.responses.create(
-        model="ft:gpt-4o-2024-08-06:personal::DDmJLoWY",
+        model=model,
         # model="gpt-4o-2024-08-06",
         instructions=instructions,
         input=openai_messages,
@@ -339,6 +341,17 @@ async def send_message(
 
     return {"response": ai_text, "citations": citations, "web_search_used": len(citations)>0,"cache_used": False, "tokens_used":tokens_used, "image_urls":[img.image_url for img in user_content if isinstance(img, ImageContent)], }
 
+# -----------------get current active model-----------------
+@router.get("/active-model")
+async def get_active_model( user: User = Depends(get_current_user)):
+    
+    try:
+        active_model_info = await TrainingDataset.find_one({ "status": "succeeded", "is_active": True }).project(ActiveModelProjection)
+        return {"success": True, "active_model": active_model_info.fine_tuned_model}
+
+    except Exception as e:
+        logging.exception("Error :", str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 # Background function using Beanie's atomic update
 async def save_turn_to_mongo(session: ChatSession, turn: ChatTurn, tokens_used: int = 0):

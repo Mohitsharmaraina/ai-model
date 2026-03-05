@@ -122,6 +122,28 @@ async def get_trained_models(req: Request, admin: Annotated[str, Depends(get_adm
     models = await TrainingDataset.find({"status": "succeeded"}).to_list()
     return models
 
+# --------------------set one of trained models as active for inference (optional)------------------------------
+@router.put("/activate-model/{dataset_id}")
+async def activate_model(dataset_id: str, req: Request, admin: Annotated[str, Depends(get_admin_user)]):
+    dataset = await TrainingDataset.get(dataset_id)
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    if dataset.status != "succeeded":
+        raise HTTPException(status_code=400, detail="Only succeeded models can be activated")
+
+    # Deactivate all other datasets
+    await TrainingDataset.find(
+        TrainingDataset.status == "succeeded",
+        TrainingDataset.id != dataset_id
+    ).update(
+        {"$set": {"is_active": False}}
+    )
+
+    # Activate selected dataset
+    dataset.is_active = True
+    await dataset.save()
+
+    return {"message": f"Model from dataset {dataset_id} activated for inference"}
 @router.post("/start-finetune/{dataset_id}")
 async def start_finetune(dataset_id: str, req: Request,  admin: Annotated[str, Depends(get_admin_user)]):
 
@@ -350,3 +372,6 @@ async def resume_finetune(dataset_id: str, req: Request,  admin: Annotated[str, 
     await dataset.save()
 
     return {"message": "Fine-tuning job resumed successfully"}
+
+
+

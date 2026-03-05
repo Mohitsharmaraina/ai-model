@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 
 export default function AIChatInterface() {
-  const { user, logout } = useAuth();
+  const { user, logout, activeModel } = useAuth();
 
   // --- STATE ---
   const navigate = useNavigate();
@@ -84,10 +84,17 @@ export default function AIChatInterface() {
     // Only save if the title actually changed and isn't empty
     if (trimmedValue && trimmedValue !== session.title) {
       try {
+        console.log(
+          "Updating session title to:",
+          trimmedValue,
+          "for session:",
+          session.session_id,
+        );
         const response = await fetch(
           `http://localhost:8000/api/v1/user_prompts/sessions/${session.session_id}`,
           {
             method: "PUT",
+            headers: { "Content-Type": "application/json" },
 
             body: JSON.stringify({ title: trimmedValue }),
             credentials: "include",
@@ -253,11 +260,13 @@ export default function AIChatInterface() {
     // Add User Message
     const userMsg = inputText.trim();
     const session_id = currentSessionId;
+    const active_model = activeModel || "gpt-4o-2024-08-06"; // default to a known model if activeModel is not set
 
     // Simulate AI Response
     const formData = new FormData();
     formData.append("session_id", session_id);
     formData.append("message", userMsg);
+    formData.append("model", active_model);
     if (webSearchEnabled) {
       formData.append("web_search", webSearchEnabled);
     }
@@ -284,13 +293,6 @@ export default function AIChatInterface() {
     setInputText("");
     clearImage();
     try {
-      console.log(
-        "Sending message with formData:",
-        session_id,
-        userMsg,
-        file,
-        webSearchEnabled,
-      );
       const response = await fetch(
         "http://localhost:8000/api/v1/user_prompts/chat",
         {

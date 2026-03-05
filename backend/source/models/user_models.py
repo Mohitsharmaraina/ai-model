@@ -41,6 +41,11 @@ class User(Document):
 
     class Settings:
         name = "users"  # Collection name in MongoDB
+
+# -----------------------------projection model for getting active model-----------------------------
+
+class ActiveModelProjection(BaseModel):
+    fine_tuned_model: Optional[str] = "gpt-4o-2024-08-06"
    
 
 # ------------------------------- Multimodal Content Schemas ------------------------

@@ -324,7 +324,7 @@ const TERMINAL_STATUSES = ["succeeded", "failed", "cancelled"];
 const RUNNING_STATUSES = ["validating_files", "queued", "running"];
 
 const FineTuningView = () => {
-  const { fineTunedModels } = useAuth();
+  const { fineTunedModels, setFineTunedModels } = useAuth();
   const [datasetId, setDatasetId] = useState(null);
 
   const [selectedModel, setSelectedModel] = useState("gpt-4o-mini-2024-07-18");
@@ -377,6 +377,7 @@ const FineTuningView = () => {
     }
   };
 
+  console.log("fineTunedModels from context:", fineTunedModels);
   // Clean up polling on unmount
   useEffect(() => {
     return () => stopPolling();
@@ -527,6 +528,24 @@ const FineTuningView = () => {
     (jobStatus === "idle" || TERMINAL_STATUSES.includes(jobStatus));
   const canCancel = RUNNING_STATUSES.includes(jobStatus);
 
+  // -------------------activate model----------------
+
+  const handleUseModel = async (datasetId) => {
+    try {
+      const response = await fetch(
+        `http://localhost:8000/api/v1/admin/activate-model/${datasetId}`,
+        { method: "PUT", credentials: "include" },
+      );
+      if (response.ok) {
+        console.log(`Model activated successfully.`);
+      } else {
+        console.error(`Failed to activate model (${response.status}).`);
+      }
+    } catch (error) {
+      console.error("Error activating model:", error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <header>
@@ -550,7 +569,7 @@ const FineTuningView = () => {
                 type="file"
                 accept=".xlsx, .xls"
                 onChange={handleFileUpload}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-gray-700 dark:file:text-gray-200"
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 hover:file:text-gray-500 file:text-blue-700 hover:file:bg-blue-100  dark:file:bg-gray-700 dark:file:text-gray-200"
               />
             </div>
           </div>
@@ -643,8 +662,28 @@ const FineTuningView = () => {
           {fineTunedModels.length > 0 ? (
             <ul className="list-disc pl-5 space-y-1">
               {fineTunedModels.map((model, index) => (
-                <li key={index} className="text-gray-700 dark:text-gray-300">
-                  {model}
+                <li
+                  key={model.datasetId}
+                  className="text-gray-700 dark:text-gray-300 flex items-center justify-between"
+                >
+                  {model.fineTunedModel}
+
+                  <button
+                    disabled={model.status}
+                    className={`px-3 py-1 bg-blue-600  ${model.status ? "bg-blue-600 disabled" : "bg-slate-400 hover:bg-blue-700 cursor-pointer"} text-white rounded-lg font-medium transition-all`}
+                    onClick={() => {
+                      handleUseModel(model.datasetId);
+                      setFineTunedModels((prev) =>
+                        prev.map((m) =>
+                          m.datasetId === model.datasetId
+                            ? { ...m, status: true }
+                            : { ...m, status: false },
+                        ),
+                      );
+                    }}
+                  >
+                    {model.status ? "In Use" : "Use"}
+                  </button>
                 </li>
               ))}
             </ul>

@@ -41,7 +41,13 @@ export const AuthProvider = ({ children }) => {
       if (response.ok) {
         const data = await response.json();
         const models = [
-          ...new Set(data.map((model) => model.fine_tuned_model)),
+          ...new Set(
+            data.map((model) => ({
+              datasetId: model._id,
+              status: model.is_active,
+              fineTunedModel: model.fine_tuned_model,
+            })),
+          ),
         ];
 
         setFineTunedModels(models);
@@ -66,7 +72,14 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider
-      value={{ user, setUser, loading, logout, fineTunedModels }}
+      value={{
+        user,
+        setUser,
+        loading,
+        logout,
+        fineTunedModels,
+        setFineTunedModels,
+      }}
     >
       {children}
     </AuthContext.Provider>
