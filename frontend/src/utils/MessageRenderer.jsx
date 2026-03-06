@@ -1,24 +1,4 @@
-// import ReactMarkdown from "react-markdown";
-// import remarkMath from "remark-math";
-// import remarkGfm from "remark-gfm";
-// import rehypeKatex from "rehype-katex";
-// import "katex/dist/katex.min.css"; // Don't forget this!
-
-// const MessageRenderer = ({ content }) => {
-//   return (
-//     <div
-//       className="prose dark:prose-invert prose-sm max-w-none
-//                  prose-p:leading-relaxed prose-pre:bg-gray-200
-//                  dark:prose-pre:bg-gray-700 prose-li:my-1"
-//     >
-//       <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-//         {content}
-//       </ReactMarkdown>
-//     </div>
-//   );
-// };
-
-// export default MessageRenderer;
+// --------------------proper message formatting for ui------------------------------
 
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
@@ -31,17 +11,17 @@ const preprocessLaTeX = (content) => {
   if (!content) return "";
   return (
     content
+
       // Convert \[ math \] or [ math ] to $$ math $$ (Block Math)
       .replace(/\\\[/g, "$$$$")
       .replace(/\\\]/g, "$$$$")
+
       .replace(/(^|\s)\[\s/g, "$1$$$$ ") // Handles [ at start of line
       .replace(/\s\](\s|$)/g, " $$$$$1") // Handles ] at end of line
 
       // Convert \( math \) or ( math ) to $ math $ (Inline Math)
       .replace(/\\\( /g, "$")
       .replace(/ \\\)/g, "$")
-      // Be careful with simple parentheses: only convert if they contain a backslash (LaTeX symbol)
-      .replace(/\((\\.*)\)/g, "$$$1$")
   );
 };
 
@@ -50,14 +30,26 @@ const MessageRenderer = ({ content }) => {
 
   return (
     <div
-      className="prose dark:prose-invert prose-sm max-w-none 
-                    prose-p:leading-relaxed prose-pre:bg-gray-200 
+      className="prose dark:prose-invert prose-sm max-w-none
+                    prose-p:leading-relaxed prose-pre:bg-gray-200
                     dark:prose-pre:bg-gray-700 prose-li:my-1
-                    break-words overflow-x-auto"
+                    break-words overflow-x-auto "
     >
       <ReactMarkdown
         remarkPlugins={[remarkMath, remarkGfm]}
         rehypePlugins={[rehypeKatex]}
+        components={{
+          a: ({ href, children }) => (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline hover:text-blue-700 dark:text-blue-400"
+            >
+              {children}
+            </a>
+          ),
+        }}
       >
         {processedContent}
       </ReactMarkdown>

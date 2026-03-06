@@ -59,6 +59,7 @@ export default function AIChatInterface() {
   const [editingSessionId, setEditingSessionId] = useState(null);
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const inputRef = useRef(null);
+  const messageEndRef = useRef(null);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -70,6 +71,11 @@ export default function AIChatInterface() {
       localStorage.setItem("theme", "light");
     }
   }, [isDarkMode]);
+
+  // Auto-scroll messages
+  useEffect(() => {
+    messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messageEndRef]);
 
   //   ------------------ Edit session title handlers ------------------------
 
@@ -521,6 +527,7 @@ export default function AIChatInterface() {
                       </div>
                     )}
                   </div>
+                  <div ref={messageEndRef} />
                 </div>
 
                 {/* 2. MODEL RESPONSE (Left Aligned) */}
