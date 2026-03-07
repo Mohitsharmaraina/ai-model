@@ -10,6 +10,7 @@ from typing import Optional, List
 from source.utils.local_embeddings_generator import generate_embedding
 # from source.utils.openAI_embeddings_generator import generate_embedding
 from source.utils.gnerate_openai_query import build_openai_content, get_llm_response
+from source.core.auth import require_member, AuthUser
 import logging
 
 
@@ -20,7 +21,7 @@ router = APIRouter(prefix="/api/v1/user_prompts", tags=["user_prompts"])
 # ---------------------------------------------------------
 @router.get("/sessions")
 async def get_user_sessions(
-    user: User = Depends(get_current_user) # auth dependency
+    user: AuthUser = Depends(require_member) # auth dependency
 ):
     """
     Fetches the list of chat sessions for the sidebar.
@@ -30,7 +31,7 @@ async def get_user_sessions(
    
     try:
         sessions = await ChatSession.find(
-        ChatSession.user_id == str(user.id)
+        ChatSession.user_id == str(user.user_id)
         ).sort( 
             -ChatSession.updated_at    
         ).project(                       # .project() selects specific fields to reduce bandwidth
@@ -49,7 +50,7 @@ async def get_user_sessions(
 @router.get("/sessions/{session_id}")
 async def get_session_history(
     session_id: str,
-    user: User = Depends(get_current_user)
+    user: AuthUser = Depends(require_member)
 ):
     """
     Loads the full message history for a specific chat session.
@@ -57,8 +58,7 @@ async def get_session_history(
     try:
         session = await ChatSession.find_one(
         ChatSession.session_id == session_id,
-        ChatSession.user_id == str(user.id)
-        )
+        ChatSession.user_id == str(user.user_id)        )
     
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
@@ -75,7 +75,7 @@ async def get_session_history(
 async def update_session_title(
     session_id: str,
     title_update: TitleUpdate,
-    user: User = Depends(get_current_user)
+    user: AuthUser = Depends(require_member)
 ):
     """
     Updates the title of a specific chat session.
@@ -83,8 +83,7 @@ async def update_session_title(
     try:
         session = await ChatSession.find_one(
             ChatSession.session_id == session_id,
-            ChatSession.user_id == str(user.id)
-        )
+            ChatSession.user_id == str(user.user_id)        )
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
 
@@ -122,9 +121,7 @@ async def send_message(
     # images: Optional[List[UploadFile]] = File(None),
     images: Optional[List[UploadFile]] = File(None),
     background_tasks: BackgroundTasks = BackgroundTasks(),
-    user: User = Depends(get_current_user),
-):
-    print("web search value:", web_search, "type:", type(web_search)) 
+    user: AuthUser = Depends(require_member)):
     #pull pre=initialized   cache   from app state
     semantic_cache = request.app.state.semantic_cache
     # ---------------- Normalize ----------------
@@ -140,12 +137,12 @@ async def send_message(
     # ---------------- Find or create session ----------------
     session = await ChatSession.find_one(
         ChatSession.session_id == session_id,
-        ChatSession.user_id == str(user.id)
+        ChatSession.user_id == str(user.user_id)
     )
 
     if not session:
         session = ChatSession(
-            user_id=str(user.id),
+            user_id=str(user.user_id),
             session_id=session_id,
             title="New Chat",
             turns=[]
@@ -343,7 +340,7 @@ async def send_message(
 
 # -----------------get current active model-----------------
 @router.get("/active-model")
-async def get_active_model( user: User = Depends(get_current_user)):
+async def get_active_model( user: AuthUser = Depends(require_member)):
     
     try:
         active_model_info = await TrainingDataset.find_one({ "status": "succeeded", "is_active": True }).project(ActiveModelProjection)

@@ -8,6 +8,7 @@ from source.utils.local_embeddings_generator import get_model
 from source.utils.semantic_cache import SemanticCache
 from source.api import register_routes
 from source.logging import configure_logging, LogLevels
+from source.config.clerk import clerk
 from openai import OpenAI
 from config_secrets import settings
 
@@ -15,6 +16,10 @@ from config_secrets import settings
 async def lifespan(app: FastAPI):
     # Startup code
     configure_logging(LogLevels.info)
+
+    # clerk connection
+    clerk_connection = clerk
+    app.state.clerk = clerk_connection
 
     # openai client
     open_ai_api_key= settings.open_ai_access_key

@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useAuth } from "../context/AuthContext";
+import { useAdminAuth } from "../../context/AdminAuthContext";
 
 const TERMINAL_STATUSES = ["succeeded", "failed", "cancelled"];
 const RUNNING_STATUSES = ["validating_files", "queued", "running"];
 
 const FineTuningView = () => {
-  const { fineTunedModels, setFineTunedModels } = useAuth();
+  const { fineTunedModels, setFineTunedModels } = useAdminAuth();
   const [datasetId, setDatasetId] = useState(null);
 
   const [selectedModel, setSelectedModel] = useState("gpt-4o-mini-2024-07-18");

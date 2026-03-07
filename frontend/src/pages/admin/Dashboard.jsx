@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
-import FineTuningView from "./FineTuning";
-import ThemeToggler from "../utils/ThemeToggler";
+import FineTuningView from "./FineTuning.jsx";
+import ThemeToggler from "../../utils/ThemeToggler.jsx";
 import { User } from "lucide-react";
-import { useAuth } from "../context/AuthContext.jsx";
+import { useAdminAuth } from "../../context/AdminAuthContext.jsx";
 
 const AdminPanel = () => {
   const [activeTab, setActiveTab] = useState("finetuning");
-  const { user } = useAuth();
+  const { user } = useAdminAuth();
 
   return (
     <div
@@ -45,7 +45,7 @@ const AdminPanel = () => {
           </nav>
         </div>
         {/* User Profile & Theme Toggle */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between">
+        <div className="p-4 border-t border-gray-400 dark:border-gray-700 flex items-center justify-between">
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="bg-blue-100 dark:bg-blue-900 p-2 rounded-full shrink-0">
               <User size={18} className="text-blue-600 dark:text-blue-300" />

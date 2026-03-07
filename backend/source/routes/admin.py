@@ -10,6 +10,7 @@ from source.utils.xlsx_or_csv_to_jsonl import process_mixed_data_v2
 from source.utils.training_file_gridfs_storage import DatasetStorageService
 from source.utils.validate_jsonl_file import validate_finetuning_jsonl, DatasetValidationError
 from source.models.training_data_model import TrainingDataset 
+from source.core.auth import require_admin, AuthUser
 import logging
 
 router = APIRouter(prefix="/api/v1/admin", tags=["Admin"])
@@ -17,7 +18,8 @@ router = APIRouter(prefix="/api/v1/admin", tags=["Admin"])
 @router.post("/convert-mixed")
 async def convert_mixed_endpoint(
     req: Request,
-    admin: Annotated[str, Depends(get_admin_user)],
+    # admin: Annotated[str, Depends(get_admin_user)],
+    admin: AuthUser = Depends(require_admin),
     dataset_name: Optional[str] = Form(None),
     file: UploadFile = File(...), 
     system_prompt: str = Form('''You are PZWind AI — an advanced engineering assistant specialized in:
@@ -117,14 +119,15 @@ async def convert_mixed_endpoint(
             logging.exception(f"Database storage failed : {str(e)}")
             raise HTTPException(status_code=500, detail="Internal server error")
 # --------------------getting list of trained models------------------------------
+# async def get_trained_models(req: Request, admin: Annotated[str, Depends(get_admin_user)]):
 @router.get("/trained-models")
-async def get_trained_models(req: Request, admin: Annotated[str, Depends(get_admin_user)]):
+async def get_trained_models(req: Request, admin: AuthUser = Depends(require_admin)):
     models = await TrainingDataset.find({"status": "succeeded"}).to_list()
     return models
 
 # --------------------set one of trained models as active for inference (optional)------------------------------
 @router.put("/activate-model/{dataset_id}")
-async def activate_model(dataset_id: str, req: Request, admin: Annotated[str, Depends(get_admin_user)]):
+async def activate_model(dataset_id: str, req: Request, admin: AuthUser = Depends(require_admin)):
     dataset = await TrainingDataset.get(dataset_id)
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
@@ -145,8 +148,7 @@ async def activate_model(dataset_id: str, req: Request, admin: Annotated[str, De
 
     return {"message": f"Model from dataset {dataset_id} activated for inference"}
 @router.post("/start-finetune/{dataset_id}")
-async def start_finetune(dataset_id: str, req: Request,  admin: Annotated[str, Depends(get_admin_user)]):
-
+async def start_finetune(dataset_id: str, req: Request,  admin: AuthUser = Depends(require_admin)):
     client = req.app.state.client
 
     dataset = await TrainingDataset.get(dataset_id)
@@ -232,7 +234,7 @@ async def start_finetune(dataset_id: str, req: Request,  admin: Annotated[str, D
     }
 
 @router.get("/finetune-status/{dataset_id}")
-async def finetune_status(dataset_id: str, req: Request, admin: Annotated[str, Depends(get_admin_user)]):
+async def finetune_status(dataset_id: str, req: Request, admin: AuthUser = Depends(require_admin)):
     client = req.app.state.client
 
     dataset = await TrainingDataset.get(dataset_id)
@@ -308,7 +310,7 @@ async def finetune_status(dataset_id: str, req: Request, admin: Annotated[str, D
 
 
 @router.post("/cancel-finetune/{dataset_id}")
-async def cancel_finetune(dataset_id: str, req: Request,  admin: Annotated[str, Depends(get_admin_user)]):
+async def cancel_finetune(dataset_id: str, req: Request,  admin: AuthUser = Depends(require_admin)):
 
     client = req.app.state.client
 
@@ -330,7 +332,7 @@ async def cancel_finetune(dataset_id: str, req: Request,  admin: Annotated[str, 
     return {"message": "Fine-tuning job cancelled successfully"}
 
 @router.post("/pause-finetune/{dataset_id}")
-async def pause_finetune(dataset_id: str, req: Request,  admin: Annotated[str, Depends(get_admin_user)]):
+async def pause_finetune(dataset_id: str, req: Request,  admin: AuthUser = Depends(require_admin)):
 
     client = req.app.state.client
 
@@ -352,7 +354,7 @@ async def pause_finetune(dataset_id: str, req: Request,  admin: Annotated[str, D
     return {"message": "Fine-tuning job paused successfully"}
 
 @router.post("/resume-finetune/{dataset_id}")
-async def resume_finetune(dataset_id: str, req: Request,  admin: Annotated[str, Depends(get_admin_user)]):
+async def resume_finetune(dataset_id: str, req: Request,  admin: AuthUser = Depends(require_admin)):
 
     client = req.app.state.client
 

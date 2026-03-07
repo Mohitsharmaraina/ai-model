@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-import MessageRenderer from "../utils/MessageRenderer";
+import { useUserAuth } from "../../context/UserAuthContext";
+import MessageRenderer from "../../utils/MessageRenderer";
+import ThemeToggler from "../../utils/ThemeToggler";
+import { UserButton } from "@clerk/react";
 import {
   MessageSquare,
   Plus,
@@ -20,7 +22,7 @@ import {
 } from "lucide-react";
 
 export default function AIChatInterface() {
-  const { user, logout, activeModel } = useAuth();
+  const { user, logout, activeModel } = useUserAuth();
 
   // --- STATE ---
   const navigate = useNavigate();
@@ -387,13 +389,13 @@ export default function AIChatInterface() {
             <FolderPlus size={18} />
             <span>New Folder</span>
           </button> */}
-          <button
+          {/* <button
             onClick={logout}
             className="flex items-center w-full gap-2 px-3 py-2 bg-transparent hover:bg-gray-200 dark:hover:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg transition-colors text-sm"
           >
             <LogOut size={18} />
             <span className="font-medium text-sm">Logout</span>
-          </button>
+          </button> */}
         </div>
 
         {/* Sessions List */}
@@ -457,26 +459,25 @@ export default function AIChatInterface() {
         </div>
 
         {/* User Profile & Theme Toggle */}
+
         <div className="p-4 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between">
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="bg-blue-100 dark:bg-blue-900 p-2 rounded-full shrink-0">
-              <User size={18} className="text-blue-600 dark:text-blue-300" />
+            <div>
+              <UserButton
+                size={18}
+                className="text-blue-600 dark:text-blue-300"
+              />
             </div>
+
             <div className="truncate">
-              <div className="text-sm font-medium truncate">
-                {user?.full_name || "User"}
+              <div className="text-sm font-medium dark:text-gray-200">
+                {user?.fullName}
               </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                {user?.email || "user@example.com"}
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {user?.primaryEmailAddress?.emailAddress}
               </div>
             </div>
           </div>
-          <button
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-500 transition-colors"
-          >
-            {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
         </div>
       </aside>
 

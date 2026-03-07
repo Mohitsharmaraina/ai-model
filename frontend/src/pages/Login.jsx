@@ -1,18 +1,18 @@
 import React, { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useUserAuth } from "../context/UserAuthContext";
 
 const LoginPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const { user, loading, setUser } = useAuth();
+  const { user, loading, setUser } = useUserAuth();
   const navigate = useNavigate();
 
   // 1. Check if user is already logged in
   if (loading) return <div>Loading...</div>;
 
   if (user) {
-    return <Navigate to="/project" replace />;
+    return <Navigate to="/user/project" replace />;
   }
 
   const handleLogin = async (e) => {

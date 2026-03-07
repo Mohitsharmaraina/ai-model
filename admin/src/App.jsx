@@ -7,8 +7,6 @@ const App = () => {
     <Router>
       <div className="App">
         <Routes>
-          <Route path="/" element={<AdminPanel />} />
-          <Route path="/finetuning" element={<FineTuningView />} />
           <Route path="/finetuning/:datasetId" element={<FineTuningView />} />
         </Routes>
       </div>
