@@ -8,10 +8,9 @@ import {
 } from "@clerk/react";
 import ThemeToggler from "../utils/ThemeToggler";
 import UnauthorizedPage from "../pages/Unauthorized";
-import { User } from "lucide-react";
 
 function AdminLayout() {
-  const { organization } = useOrganization();
+  const { organization, membership } = useOrganization();
   const { user } = useUser();
   const location = useLocation();
 
@@ -26,7 +25,7 @@ function AdminLayout() {
       >
         <div className="min-h-screen flex w-full dark:bg-gray-900 bg-gray-50">
           {/* Sidebar */}
-          <aside className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col justify-between">
+          <aside className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col justify-between max-h-screen">
             <div>
               <div className="p-6 flex items-center justify-between">
                 <h1 className="text-[22px] font-bold text-gray-800 dark:text-white">
@@ -68,20 +67,20 @@ function AdminLayout() {
                 </Link>
 
                 <Link
-                  to="/admin/users"
+                  to="/user/project"
                   className={`w-full flex px-3 py-2 text-sm rounded-md ${
                     isActive("/admin/users")
                       ? "bg-blue-50 text-blue-700 dark:bg-blue-900/50"
-                      : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                      : "text-gray-700 dark:bg-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-500"
                   }`}
                 >
-                  View Users
+                  Chat Interface
                 </Link>
               </nav>
             </div>
 
             {/* User profile */}
-            <div className="p-4 border-t border-gray-200 dark:border:gray-800 flex items-center justify-between">
+            <div className="p-4 border-t border-gray-700 dark:border:gray-800 flex items-center justify-between">
               <div className="flex items-center gap-3 overflow-hidden">
                 <div>
                   <UserButton
@@ -92,7 +91,7 @@ function AdminLayout() {
 
                 <div className="truncate">
                   <div className="text-sm font-medium dark:text-gray-200">
-                    {user?.fullName}
+                    {user?.fullName} {`(${membership?.role})`}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">
                     {user?.primaryEmailAddress?.emailAddress}
@@ -103,7 +102,7 @@ function AdminLayout() {
           </aside>
 
           {/* Main */}
-          <main className="flex-1 overflow-y-auto">
+          <main className="flex-1 overflow-y-scroll">
             <div className="py-8 px-8 sm:px-10 max-w-5xl mx-auto">
               {organization ? <Outlet /> : <p>Select an organization</p>}
             </div>

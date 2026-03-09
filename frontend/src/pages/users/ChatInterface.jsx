@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useOutletContext, Link } from "react-router-dom";
 import { useUserAuth } from "../../context/UserAuthContext";
 import MessageRenderer from "../../utils/MessageRenderer";
 import ThemeToggler from "../../utils/ThemeToggler";
@@ -23,6 +23,7 @@ import {
 
 export default function AIChatInterface() {
   const { user, logout, activeModel } = useUserAuth();
+  const { role } = useOutletContext();
 
   // --- STATE ---
   const navigate = useNavigate();
@@ -63,6 +64,7 @@ export default function AIChatInterface() {
   const inputRef = useRef(null);
   const messageEndRef = useRef(null);
 
+  console.log("role coming from outlet", role);
   useEffect(() => {
     const root = window.document.documentElement;
     if (isDarkMode) {
@@ -458,6 +460,18 @@ export default function AIChatInterface() {
             ))}
         </div>
 
+        {/* if admin, link for fine-tuning */}
+        {role == "org:admin" && (
+          <nav className="mb-2 space-y-1 px-3">
+            <Link
+              to="/admin/finetuning"
+              className={`w-full flex px-3 py-2 text-sm rounded-md text-gray-700 bg-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700`}
+            >
+              Model Training
+            </Link>
+          </nav>
+        )}
+
         {/* User Profile & Theme Toggle */}
 
         <div className="p-4 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between">
@@ -476,6 +490,9 @@ export default function AIChatInterface() {
               <div className="text-xs text-gray-500 dark:text-gray-400">
                 {user?.primaryEmailAddress?.emailAddress}
               </div>
+            </div>
+            <div className="cursor-pointer rounded-full">
+              <ThemeToggler />
             </div>
           </div>
         </div>

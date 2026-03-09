@@ -23,7 +23,7 @@ function UserProtectedRoute() {
   const role = membership?.role;
 
   if (role === "org:admin" || role === "org:member") {
-    return <Outlet />;
+    return <Outlet context={{ role }} />;
   }
 
   return <UnauthorizedPage />;
