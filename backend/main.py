@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
     await cache._create_index_if_not_exists() # ensure index is created once at setup
     # store in app.state for access in routes
     app.state.semantic_cache = cache
-    get_model()
+    # get_model()
     yield
 
     # Shutdown code (if any)
