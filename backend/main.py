@@ -14,40 +14,40 @@ from config_secrets import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup code
-    configure_logging(LogLevels.info)
+    # # Startup code
+    # configure_logging(LogLevels.info)
 
-    # clerk connection
-    clerk_connection = clerk
-    app.state.clerk = clerk_connection
+    # # clerk connection
+    # clerk_connection = clerk
+    # app.state.clerk = clerk_connection
 
-    # openai client
-    open_ai_api_key= settings.open_ai_access_key
-    openAI_client = OpenAI(api_key=open_ai_api_key)
-    app.state.client = openAI_client
+    # # openai client
+    # open_ai_api_key= settings.open_ai_access_key
+    # openAI_client = OpenAI(api_key=open_ai_api_key)
+    # app.state.client = openAI_client
 
-    # Database setup and GridFS bucket initialization
-    client, database, bucket = await init_db()
-    app.state.db_client = client
-    app.state.db = database
-    app.state.gridfs_bucket = bucket
+    # # Database setup and GridFS bucket initialization
+    # client, database, bucket = await init_db()
+    # app.state.db_client = client
+    # app.state.db = database
+    # app.state.gridfs_bucket = bucket
 
 
-    s3_client = init_s3()
-    app.state.s3_client = s3_client
+    # s3_client = init_s3()
+    # app.state.s3_client = s3_client
 
-    # redis and semantic cache setup
-    redis_client = await get_redis_client()
-    cache = SemanticCache(redis_client)
-    await cache._create_index_if_not_exists() # ensure index is created once at setup
-    # store in app.state for access in routes
-    app.state.semantic_cache = cache
-    # get_model()
+    # # redis and semantic cache setup
+    # redis_client = await get_redis_client()
+    # cache = SemanticCache(redis_client)
+    # await cache._create_index_if_not_exists() # ensure index is created once at setup
+    # # store in app.state for access in routes
+    # app.state.semantic_cache = cache
+    # # get_model()
     yield
 
-    # Shutdown code (if any)
-    await redis_client.close()
-    await client.close()
+    # # Shutdown code (if any)
+    # await redis_client.close()
+    # await client.close()
 
 app = FastAPI(lifespan=lifespan, title="AI Model Backend API", version="1.0.0")
 
