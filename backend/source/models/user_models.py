@@ -98,7 +98,7 @@ class ChatSession_view(BaseModel):
 # --- The Main Collection ---
 class ChatSession(Document):
     user_id: Annotated[str, Indexed()] 
-    session_id: Annotated[str, Indexed(unique=True)] 
+    session_id: Annotated[str, Indexed()] 
     title: str = "New Chat"  # Default title until AI summarizes it
     
     turns: List[ChatTurn] = []

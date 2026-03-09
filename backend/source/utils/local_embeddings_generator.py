@@ -2,19 +2,19 @@ from sentence_transformers import SentenceTransformer
 
 model = None
 
-def get_model(app):
-    if app.state.model is None:
-        from source.utils.local_embeddings_generator import get_model
-        app.state.model = get_model()
-    return app.state.model
+# def get_model(app):
+#     if app.state.model is None:
+#         from source.utils.local_embeddings_generator import get_model
+#         app.state.model = get_model()
+#     return app.state.model
 
-# def get_model():
-#     global model
-#     if model is None:
-#         print("Loading SentenceTransformer model...")
-#         model = SentenceTransformer('all-MiniLM-L6-v2')
+def get_model():
+    global model
+    if model is None:
+        print("Loading SentenceTransformer model...")
+        model = SentenceTransformer('all-MiniLM-L6-v2')
 
-#     return model
+    return model
 
 async def generate_embedding(text: str) -> list[float]:
     """
